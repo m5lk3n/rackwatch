@@ -1,0 +1,23 @@
+[dashboard]
+refresh_seconds = 30
+stale_after = "200s"
+# theme = "brotkasten"
+show_sparklines = true
+
+[thresholds]
+cpu_warning = 80
+memory_warning = 85
+disk_warning = 90
+temperature_warning = 75 # celcius
+
+[[hosts]]
+name = "rack-01"
+metrics_source = "local"
+
+[[hosts]]
+name = "rack-02"
+metrics_source = "http://rack-02.internal:9100/metrics"
+
+[[hosts]]
+name = "rack-03"
+metrics_source = "http://rack-03.internal:9100/metrics"

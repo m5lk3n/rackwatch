@@ -1,0 +1,10 @@
+(A) integrate with Telegram
+check support for emojis in config's host names
+use [C64 font](https://github.com/szabadkai/c64-keyboard-font/)?
+add a license
+containerize it
+update README with screenshots
+add AI and usage disclaimer
+check load and disk pressure
+give it a logo
+describe how to run it
