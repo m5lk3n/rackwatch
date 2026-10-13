@@ -140,6 +140,7 @@ If that prints a line, the TUI can read the host.
 
 - `make`
 - `go 1.27+`
+- optional: [todo.txt-cli](https://github.com/todotxt/todo.txt-cli) with `alias t='todo.sh -d ./todo.cfg'`
 
 Create a release with
 

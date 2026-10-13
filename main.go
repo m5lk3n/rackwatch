@@ -9,6 +9,9 @@ import (
 	ui "github.com/metaspartan/gotui"
 )
 
+// version is set at build time via -ldflags "-X main.version=..." (see Makefile).
+var version = "dev"
+
 func main() {
 	configPath := flag.String("config", "config.toml", "path to the TOML config file")
 	flag.Parse()

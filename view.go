@@ -125,6 +125,7 @@ func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 	}
 	x := r.Min.X
 	x = putString(buf, " RACKWATCH ", d.th.title, x, r.Min.Y, r.Max.X)
+	x = putString(buf, " "+version, d.th.label, x, r.Min.Y, r.Max.X)
 	upStyle := d.th.value
 	if up < len(d.hosts) {
 		upStyle = d.th.warn

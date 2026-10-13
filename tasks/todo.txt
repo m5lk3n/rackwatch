@@ -1,5 +1,4 @@
 (A) integrate with Telegram
-check support for emojis in config's host names
 containerize it
 update README, also with screenshots
 check load and disk pressure
