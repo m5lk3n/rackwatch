@@ -13,6 +13,12 @@ margin_bottom = 0
 margin_left = 5
 margin_right = 4
 
+[screensaver]
+# digital rain from The Matrix; any key or touch ends it early
+enabled = true
+interval = "10m"
+duration = "10s"
+
 [thresholds]
 cpu_warning = 80
 memory_warning = 85

@@ -1,7 +1,5 @@
 # rackwatch
 
-:construction: UNDER CONSTRUCTION :construction:
-
 <!-- markdownlint-disable MD033 -->
 <p align="center">
   <img src="images/logo.png" alt="rackwatch logo" width="15%"/>
@@ -62,6 +60,9 @@ See [config.toml.example](config.toml.example) for a full example.
 | `dashboard.spark_glyphs` | `"eighths"` draws bars in eighth-row steps (`▁▂▃…█`). `"halves"` uses only `▄` and `█`. `"line"` draws just the top of each bar with `_`, `-` and `¯`, which every Linux text console font has; the eighth blocks show as diamonds there. `"auto"` picks line when running on a Linux virtual console (`/dev/ttyN`) or with `TERM=linux` (default `"auto"`) |
 | `dashboard.condensed` | Show each metric on a single row, without the extra rows that normally hold taller sparklines. Panels are only as tall as their content (7 rows) instead of filling the screen (default `false`) |
 | `dashboard.margin_top`, `margin_bottom`, `margin_left`, `margin_right` | Rows and columns to leave blank at each edge of the terminal, for parts the screen hides (default `0`) |
+| `screensaver.enabled` | Show the digital rain from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
+| `screensaver.interval` | How often the screensaver starts, e.g. `"10m"` (default `"10m"`) |
+| `screensaver.duration` | How long it runs, e.g. `"10s"`. Must be shorter than `interval` (default `"10s"`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C. |
 | `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured. |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
@@ -133,13 +134,6 @@ If that prints a line, the TUI can read the host.
 - Disk usage covers only the `/` mount.
 - Network traffic adds up all interfaces except loopback and virtual ones like `veth*`, `docker*` and `br-*`.
 
----
-
-## Sources
-
-- The default theme takes its colors from VS Code's [Dark 2026 theme](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/2026-dark.json).
-- The other dashboard themes are dark variants from [Prot16 general resources](https://github.com/protesilaos/prot16).
-
 ## Prerequisites
 
 ### Development
@@ -152,3 +146,22 @@ Create a release with
 ```sh
 git tag v0.1.0 && git push origin v0.1.0
 ```
+
+## Sources
+
+- The default theme takes its colors from VS Code's [Dark 2026 theme](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/2026-dark.json).
+- The other dashboard themes are dark variants from [Prot16 general resources](https://github.com/protesilaos/prot16).
+- The screensaver (digital rain) is heavily inspired from The Matrix movie.
+- The lttl.dev logo in the footer is my own.
+
+## Disclaimer
+
+- I'm neither responsible for any damage to your devices nor for external links.
+- I used AI (Claude Code, Copilot and ChatGPT) to realize this project. The [logo](images/logo.png) is custom-generated art by Claude Code.
+
+---
+
+<!-- markdownlint-disable MD033 -->
+<p align="center">
+    <a href="https://lttl.dev/"><img alt="lttl.dev logo" src="images/lttl.dev.png"/></a>
+</p>

@@ -2,3 +2,5 @@ x 2026-10-12 support C64 theme(s)
 x 2026-10-13 add a license
 x 2026-10-13 build releases, publish on GitHub
 x 2026-10-13 give it a logo
+x 2026-10-13 add AI and usage disclaimer
+x 2026-10-13 add a screensaver option

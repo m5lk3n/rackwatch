@@ -16,9 +16,10 @@ const sourceLocal = "local"
 const maxHosts = 10
 
 type config struct {
-	Dashboard  dashboardConfig  `toml:"dashboard"`
-	Thresholds thresholdsConfig `toml:"thresholds"`
-	Hosts      []hostConfig     `toml:"hosts"`
+	Dashboard   dashboardConfig   `toml:"dashboard"`
+	Screensaver screensaverConfig `toml:"screensaver"`
+	Thresholds  thresholdsConfig  `toml:"thresholds"`
+	Hosts       []hostConfig      `toml:"hosts"`
 }
 
 type dashboardConfig struct {
@@ -32,6 +33,12 @@ type dashboardConfig struct {
 	MarginBottom   int      `toml:"margin_bottom"`
 	MarginLeft     int      `toml:"margin_left"`
 	MarginRight    int      `toml:"margin_right"`
+}
+
+type screensaverConfig struct {
+	Enabled  bool     `toml:"enabled"`
+	Interval duration `toml:"interval"` // how often it starts
+	Duration duration `toml:"duration"` // how long it runs
 }
 
 type thresholdsConfig struct {
@@ -69,6 +76,11 @@ func defaultConfig() config {
 			Theme:          defaultTheme,
 			ShowSparklines: true,
 			SparkGlyphs:    sparkGlyphsAuto,
+		},
+		Screensaver: screensaverConfig{
+			Enabled:  true,
+			Interval: duration{10 * time.Minute},
+			Duration: duration{10 * time.Second},
 		},
 		Thresholds: thresholdsConfig{
 			CPUWarning:         80,
@@ -131,6 +143,9 @@ func (c config) validate() error {
 	if _, ok := sparkGlyphSets[c.Dashboard.SparkGlyphs]; !ok && c.Dashboard.SparkGlyphs != sparkGlyphsAuto {
 		return fmt.Errorf("dashboard.spark_glyphs: must be %q, %q, %q or %q, got %q",
 			sparkGlyphsAuto, sparkGlyphsEighths, sparkGlyphsHalves, sparkGlyphsLine, c.Dashboard.SparkGlyphs)
+	}
+	if s := c.Screensaver; s.Enabled && (s.Duration.Duration <= 0 || s.Interval.Duration <= s.Duration.Duration) {
+		return errors.New("screensaver.duration must be positive and shorter than screensaver.interval")
 	}
 	if _, ok := themes[c.Dashboard.Theme]; !ok {
 		return fmt.Errorf("dashboard.theme: unknown theme %q (available: %s)", c.Dashboard.Theme, themeNames())

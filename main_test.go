@@ -392,3 +392,59 @@ func TestSparkGlyphs(t *testing.T) {
 		t.Errorf("column = %q over %q, want _ over empty", top, bottom)
 	}
 }
+
+func TestScreensaverConfig(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Hosts = []hostConfig{{Name: "a", MetricsSource: sourceLocal}}
+	if s := cfg.Screensaver; !s.Enabled || s.Interval.Duration != 10*time.Minute || s.Duration.Duration != 10*time.Second {
+		t.Errorf("default screensaver = %+v, want enabled every 10m for 10s", s)
+	}
+	cfg.Screensaver.Duration.Duration = cfg.Screensaver.Interval.Duration
+	if err := cfg.validate(); err == nil {
+		t.Error("screensaver running as long as its interval accepted, want error")
+	}
+	cfg.Screensaver.Enabled = false
+	if err := cfg.validate(); err != nil {
+		t.Errorf("disabled screensaver validated: %v", err)
+	}
+}
+
+// TestScreensaver animates the matrix rain at the rack display's size and logs
+// the last frame; run with -v to see it.
+func TestScreensaver(t *testing.T) {
+	for _, console := range []bool{false, true} {
+		m := newMatrixRain(console)
+		m.SetRect(0, 0, 178, 17)
+		for range 60 {
+			m.step()
+		}
+		buf := ui.NewBuffer(m.GetRect())
+		m.Draw(buf)
+
+		var out strings.Builder
+		heads, glyphs := 0, 0
+		for y := 0; y < 17; y++ {
+			for x := 0; x < 178; x++ {
+				c := buf.GetCell(image.Pt(x, y))
+				out.WriteRune(c.Rune)
+				if c.Rune != ' ' {
+					glyphs++
+				}
+				if c.Style == m.styles[0] {
+					heads++
+				}
+				if console && (c.Style.Fg > tcell.ColorSilver || c.Style.Bg > tcell.ColorSilver) {
+					t.Fatalf("console style %+v uses a color tcell can't send to TERM=linux", c.Style)
+				}
+				if !console && c.Rune != ' ' && !c.Style.Fg.IsRGB() {
+					t.Fatalf("emulator style %+v should be RGB", c.Style)
+				}
+			}
+			out.WriteByte('\n')
+		}
+		t.Logf("console=%v:\n%s", console, out.String())
+		if heads == 0 || glyphs < 178*17/10 {
+			t.Errorf("console=%v: %d heads and %d glyphs on screen, want rain", console, heads, glyphs)
+		}
+	}
+}
