@@ -1,8 +1,17 @@
 [dashboard]
 refresh_seconds = 30
-stale_after = "200s"
-# theme = "brotkasten"
+stale_after = "300s"
+theme = "default"
 show_sparklines = true
+# "auto", "eighths", "halves" or "line"; auto uses line on the Linux text console
+spark_glyphs = "auto"
+# one row per metric instead of stretching panels to fill the screen
+condensed = false
+# rows and columns hidden by the screen's bezel
+margin_top = 1
+margin_bottom = 0
+margin_left = 5
+margin_right = 4
 
 [thresholds]
 cpu_warning = 80
@@ -11,13 +20,15 @@ disk_warning = 90
 temperature_warning = 75 # celcius
 
 [[hosts]]
-name = "rack-01"
+name = "rackbox-01"
 metrics_source = "local"
 
 [[hosts]]
-name = "rack-02"
-metrics_source = "http://rack-02.internal:9100/metrics"
+name = "rackbox-02"
+metrics_source = "http://rackbox-02.internal:9100/metrics"
 
 [[hosts]]
-name = "rack-03"
-metrics_source = "http://rack-03.internal:9100/metrics"
+name = "rackbox-03"
+metrics_source = "http://rackbox-03.internal:9100/metrics"
+# set to false to hide a host without deleting it
+enabled = true

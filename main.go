@@ -30,6 +30,10 @@ func run(cfg config) error {
 		hosts[i] = newHostState(hc)
 	}
 
+	if onLinuxConsole() {
+		// Registered before ui.Close, so it runs after the screen is released.
+		defer themes[cfg.Dashboard.Theme].setConsolePalette(os.Stdout)()
+	}
 	if err := ui.Init(); err != nil {
 		return fmt.Errorf("initializing terminal: %w", err)
 	}
@@ -37,8 +41,10 @@ func run(cfg config) error {
 
 	dash := newDashboard(cfg, hosts)
 	render := func() {
+		// Margins skip rows and columns the physical screen hides behind its bezel.
 		w, h := ui.TerminalDimensions()
-		dash.SetRect(0, 0, w, h)
+		m := cfg.Dashboard
+		dash.SetRect(m.MarginLeft, m.MarginTop, w-m.MarginRight, h-m.MarginBottom)
 		dash.now = time.Now()
 		ui.Render(dash)
 	}

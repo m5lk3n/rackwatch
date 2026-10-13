@@ -146,7 +146,7 @@ func shortErr(err error) string {
 	}
 	var dnsErr *net.DNSError
 	if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
-		return "unknown host " + dnsErr.Name
+		return "unknown host"
 	}
 	var opErr *net.OpError
 	if errors.As(err, &opErr) && opErr.Err != nil {

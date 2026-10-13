@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image"
 	"math"
+	"os"
+	"regexp"
 	"time"
 
 	rw "github.com/mattn/go-runewidth"
@@ -13,10 +15,58 @@ import (
 const (
 	labelWidth     = 5
 	valueWidth     = 7
-	minPanelWidth  = 34
+	minPanelWidth  = 33
 	panelHeight    = 2 + int(metricCount) // border + one row per metric
 	sparkGapMarker = '·'
 )
+
+const (
+	sparkGlyphsAuto    = "auto"
+	sparkGlyphsEighths = "eighths"
+	sparkGlyphsHalves  = "halves"
+	sparkGlyphsLine    = "line"
+)
+
+// sparkGlyphSet is how a sparkline column is drawn: glyphs are the levels
+// within one row from lowest to highest, and fill puts full rows under the top.
+type sparkGlyphSet struct {
+	glyphs []rune
+	fill   bool
+}
+
+// sparkGlyphSets are the ways to draw sparklines. The Linux console's fonts
+// lack the eighth blocks (they show as a diamond), so "line" draws only the
+// top of each bar with _ - ¯, which every console font has.
+var sparkGlyphSets = map[string]sparkGlyphSet{
+	sparkGlyphsEighths: {glyphs: ui.BARS[1:], fill: true},
+	sparkGlyphsHalves:  {glyphs: []rune{'▄', '█'}, fill: true},
+	sparkGlyphsLine:    {glyphs: []rune{'_', '-', '¯'}},
+}
+
+// sparkGlyphs resolves the spark_glyphs setting, picking line on the Linux console.
+func sparkGlyphs(setting string) sparkGlyphSet {
+	if setting == sparkGlyphsAuto {
+		setting = sparkGlyphsEighths
+		if onLinuxConsole() {
+			setting = sparkGlyphsLine
+		}
+	}
+	return sparkGlyphSets[setting]
+}
+
+// vtDevice matches the Linux virtual consoles, e.g. /dev/tty1, as opposed to
+// the /dev/pts/N of terminal emulators, SSH and tmux.
+var vtDevice = regexp.MustCompile(`^/dev/(tty[0-9]+|console)$`)
+
+// onLinuxConsole reports whether output goes to a Linux virtual console. It
+// checks the device as well as TERM, since TERM is often set wrongly there.
+func onLinuxConsole() bool {
+	if os.Getenv("TERM") == "linux" {
+		return true
+	}
+	dev, err := os.Readlink("/proc/self/fd/1")
+	return err == nil && vtDevice.MatchString(dev)
+}
 
 var metricLabels = [metricCount]string{"CPU", "RAM", "DISK", "TEMP", "NET"}
 
@@ -26,12 +76,13 @@ type dashboard struct {
 	ui.Block
 	cfg   config
 	th    *theme
+	spark sparkGlyphSet
 	hosts []*hostState
 	now   time.Time
 }
 
 func newDashboard(cfg config, hosts []*hostState) *dashboard {
-	d := &dashboard{Block: *ui.NewBlock(), cfg: cfg, th: themes[cfg.Dashboard.Theme], hosts: hosts}
+	d := &dashboard{Block: *ui.NewBlock(), cfg: cfg, th: themes[cfg.Dashboard.Theme].forTerminal(onLinuxConsole()), spark: sparkGlyphs(cfg.Dashboard.SparkGlyphs), hosts: hosts}
 	d.Border = false
 	return d
 }
@@ -49,6 +100,10 @@ func (d *dashboard) Draw(buf *ui.Buffer) {
 	rows := (n + cols - 1) / cols
 	body := image.Rect(r.Min.X, r.Min.Y+1, r.Max.X, r.Max.Y)
 	cellH := max(panelHeight, body.Dy()/rows)
+	if d.cfg.Dashboard.Condensed {
+		// One row per metric; panels don't stretch to fill the screen.
+		cellH = panelHeight
+	}
 	for i, h := range d.hosts {
 		col, row := i%cols, i/cols
 		x0 := body.Min.X + col*body.Dx()/cols
@@ -160,20 +215,23 @@ func (d *dashboard) drawMetric(buf *ui.Buffer, h *hostState, k metricKind, fresh
 		case s >= threshold:
 			style = d.th.warn
 		}
-		drawSparkColumn(buf, s/scale, height, style, pt)
+		drawSparkColumn(buf, d.spark, s/scale, height, style, pt)
 	}
 }
 
 // drawSparkColumn draws a bar of the given fraction of height rows, growing up
-// from bottom. Each row holds eight eighth-block levels.
-func drawSparkColumn(buf *ui.Buffer, frac float64, height int, style ui.Style, bottom image.Point) {
-	steps := len(ui.BARS) - 1
-	// Always draw at least one eighth so zero still shows a baseline.
+// from bottom. Each row holds len(set.glyphs) levels.
+func drawSparkColumn(buf *ui.Buffer, set sparkGlyphSet, frac float64, height int, style ui.Style, bottom image.Point) {
+	steps := len(set.glyphs)
+	// Always draw at least one step so zero still shows a baseline.
 	level := max(1, int(clamp(frac, 0, 1)*float64(height*steps)+0.5))
-	for row := 0; row < height && level > 0; row++ {
-		buf.SetCell(ui.NewCell(ui.BARS[min(level, steps)], style), bottom.Sub(image.Pt(0, row)))
-		level -= steps
+	top := (level - 1) / steps
+	if set.fill {
+		for row := 0; row < top; row++ {
+			buf.SetCell(ui.NewCell(set.glyphs[steps-1], style), bottom.Sub(image.Pt(0, row)))
+		}
 	}
+	buf.SetCell(ui.NewCell(set.glyphs[(level-1)%steps], style), bottom.Sub(image.Pt(0, top)))
 }
 
 // threshold returns the warning level for a metric, or +Inf if it has none.

@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"image"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -169,8 +173,66 @@ func TestConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Dashboard.StaleAfter.Duration != 15*time.Second || len(cfg.Hosts) != 3 {
+	if cfg.Dashboard.StaleAfter.Duration != 300*time.Second || cfg.Dashboard.MarginTop != 1 || cfg.Dashboard.MarginLeft != 5 || cfg.Dashboard.MarginRight != 4 || len(cfg.Hosts) != 3 {
 		t.Errorf("unexpected config: %+v", cfg)
+	}
+}
+
+func TestConfigHostLimit(t *testing.T) {
+	cfg := defaultConfig()
+	for i := range maxHosts + 1 {
+		cfg.Hosts = append(cfg.Hosts, hostConfig{Name: fmt.Sprintf("h%d", i), MetricsSource: sourceLocal})
+	}
+	if err := cfg.validate(); err == nil {
+		t.Errorf("%d hosts accepted, want error", len(cfg.Hosts))
+	}
+	cfg.Hosts = cfg.Hosts[:maxHosts]
+	if err := cfg.validate(); err != nil {
+		t.Errorf("%d hosts rejected: %v", len(cfg.Hosts), err)
+	}
+}
+
+func TestConfigEnabled(t *testing.T) {
+	f := false
+	tr := true
+	hosts := []hostConfig{
+		{Name: "default"},
+		{Name: "on", Enabled: &tr},
+		{Name: "off", Enabled: &f},
+	}
+	got := enabledHosts(hosts)
+	if len(got) != 2 || got[0].Name != "default" || got[1].Name != "on" {
+		t.Errorf("enabledHosts = %+v, want default and on", got)
+	}
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	const toml = `
+[[hosts]]
+name = "off"
+metrics_source = "not a url"
+enabled = false
+
+[[hosts]]
+name = "on"
+metrics_source = "local"
+enabled = true
+`
+	if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Hosts) != 1 || cfg.Hosts[0].Name != "on" {
+		t.Errorf("hosts = %+v, want only on", cfg.Hosts)
+	}
+
+	if err := os.WriteFile(path, []byte("[[hosts]]\nname = \"x\"\nmetrics_source = \"local\"\nenabled = false\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadConfig(path); err == nil {
+		t.Error("config with every host disabled accepted, want error")
 	}
 }
 
@@ -181,6 +243,8 @@ func TestRender(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// rackbox-02's last good poll is 42s old; keep that STALE whatever the example sets.
+	cfg.Dashboard.StaleAfter.Duration = 30 * time.Second
 	screen := tcell.NewSimulationScreen("UTF-8")
 	if err := screen.Init(); err != nil {
 		t.Fatal(err)
@@ -195,7 +259,7 @@ func TestRender(t *testing.T) {
 	}
 	now := time.Now()
 	t0 := now.Add(-time.Minute)
-	// rack-01: healthy with history; rack-02: went away a while ago; rack-03: never reachable.
+	// rackbox-01: healthy with history; rackbox-02: went away a while ago; rackbox-03: never reachable.
 	for i := 0; i < 40; i++ {
 		at := t0.Add(time.Duration(i) * 2 * time.Second)
 		hosts[0].apply(pollResult{sample: rawSample{
@@ -209,7 +273,7 @@ func TestRender(t *testing.T) {
 			hosts[1].apply(pollResult{err: context.DeadlineExceeded})
 		}
 	}
-	hosts[2].apply(pollResult{err: errors.New("unknown host rack-03.internal")})
+	hosts[2].apply(pollResult{err: errors.New("unknown host")})
 
 	d := newDashboard(cfg, hosts)
 	d.SetRect(0, 0, 178, 17)
@@ -228,7 +292,23 @@ func TestRender(t *testing.T) {
 	}
 	text := out.String()
 	t.Log("\n" + text)
-	for _, want := range []string{"RACKWATCH", "1/3 UP", "rack-01", " UP ", "STALE", "DOWN", "unknown host", "timeout", "61%", "90%"} {
+	d.cfg.Dashboard.Condensed = true
+	ui.Render(d)
+	cells, w, _ = screen.GetContents()
+	var condensed strings.Builder
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			if r := cells[y*w+x].Runes; len(r) > 0 {
+				condensed.WriteRune(r[0])
+			}
+		}
+		condensed.WriteByte('\n')
+	}
+	t.Log("condensed:\n" + condensed.String())
+	if lines := strings.Split(condensed.String(), "\n"); !strings.Contains(lines[2], "CPU") || !strings.Contains(lines[6], "NET") || !strings.Contains(lines[7], "╰") {
+		t.Errorf("condensed render should put CPU..NET on rows 2..6 and close the panel on row 7")
+	}
+	for _, want := range []string{"RACKWATCH", "1/3 UP", "rackbox-01", " UP ", "STALE", "DOWN", "unknown host", "timeout", "61%", "90%"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("render is missing %q", want)
 		}
@@ -258,10 +338,57 @@ func TestThemes(t *testing.T) {
 			t.Errorf("theme %q: text color equals background", name)
 		}
 	}
+	// Themes must survive the Linux console: 16 foreground and 8 background colors.
+	for name, th := range themes {
+		for _, st := range th.styles() {
+			if st.Fg < tcell.ColorBlack || st.Fg > tcell.ColorWhite || st.Bg < tcell.ColorBlack || st.Bg > tcell.ColorSilver {
+				t.Errorf("theme %q: style %+v uses colors the Linux console lacks", name, st)
+			}
+		}
+	}
+	// On the console, bright colors are drawn as their dim slot plus bold.
+	con := themes[defaultTheme].forTerminal(true)
+	for _, st := range con.styles() {
+		if st.Fg > tcell.ColorSilver || st.Bg > tcell.ColorSilver {
+			t.Errorf("console style %+v uses a color tcell can't send to TERM=linux", *st)
+		}
+	}
+	if w := con.warn; w.Fg != tcell.ColorMaroon || w.Modifier&ui.ModifierBold == 0 {
+		t.Errorf("console warn = %+v, want slot 1 + bold (slot 9)", w)
+	}
+	if st := themes[defaultTheme].forTerminal(false).value; !st.Fg.IsRGB() {
+		t.Errorf("emulator value color %v should be RGB from the palette", st.Fg)
+	}
 	cfg := defaultConfig()
 	cfg.Hosts = []hostConfig{{Name: "a", MetricsSource: sourceLocal}}
 	cfg.Dashboard.Theme = "amiga"
-	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "brotkasten") {
+	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), "fortuna") {
 		t.Errorf("unknown theme should list available themes, got %v", err)
+	}
+}
+
+func TestSparkGlyphs(t *testing.T) {
+	t.Setenv("TERM", "linux")
+	if got := string(sparkGlyphs(sparkGlyphsAuto).glyphs); got != "_-¯" {
+		t.Errorf("auto on the Linux console = %q, want line", got)
+	}
+	for dev, want := range map[string]bool{"/dev/tty1": true, "/dev/tty12": true, "/dev/console": true, "/dev/pts/3": false, "/dev/ttyS0": false} {
+		if got := vtDevice.MatchString(dev); got != want {
+			t.Errorf("vtDevice(%q) = %v, want %v", dev, got, want)
+		}
+	}
+
+	// 70% of two rows in halves is 2.8 → 3 half-rows: a full block under a half block.
+	buf := ui.NewBuffer(image.Rect(0, 0, 1, 2))
+	drawSparkColumn(buf, sparkGlyphs(sparkGlyphsHalves), 0.7, 2, ui.StyleClear, image.Pt(0, 1))
+	if top, bottom := buf.GetCell(image.Pt(0, 0)).Rune, buf.GetCell(image.Pt(0, 1)).Rune; top != '▄' || bottom != '█' {
+		t.Errorf("column = %q over %q, want ▄ over █", top, bottom)
+	}
+
+	// The same 70% as a line is level 4 of 6: only the lowest mark in the top row.
+	buf = ui.NewBuffer(image.Rect(0, 0, 1, 2))
+	drawSparkColumn(buf, sparkGlyphs(sparkGlyphsLine), 0.7, 2, ui.StyleClear, image.Pt(0, 1))
+	if top, bottom := buf.GetCell(image.Pt(0, 0)).Rune, buf.GetCell(image.Pt(0, 1)).Rune; top != '_' || bottom != ' ' {
+		t.Errorf("column = %q over %q, want _ over empty", top, bottom)
 	}
 }
