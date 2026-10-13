@@ -3,18 +3,20 @@
 :construction: UNDER CONSTRUCTION :construction:
 
 <!-- markdownlint-disable MD033 -->
-<!-- markdownlint-disable MD041 -->
 <p align="center">
-<img src="rackwatch.png" alt="rackwatch"/>
+  <img src="images/logo.png" alt="rackwatch logo" width="15%"/>
 </p>
-<!-- markdownlint-enable MD041 -->
 <p align="center">
-<img alt="language" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white"/>
-<img alt="MIT license" src="https://img.shields.io/badge/License-MIT-green"/>
+  A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history.
+</p>
+<p align="center">
+  <img alt="language" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white"/>
+  <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-green"/>
+</p>
+<p align="center">
+  <img src="images/rackwatch.png" alt="rackwatch screenshot"/>
 </p>
 <!-- markdownlint-enable MD033 -->
-
-A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history.
 
 ## Constraints
 
@@ -144,3 +146,9 @@ If that prints a line, the TUI can read the host.
 
 - `make`
 - `go 1.27+`
+
+Create a release with
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```

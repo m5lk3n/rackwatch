@@ -1,13 +1,11 @@
 (A) integrate with Telegram
 check support for emojis in config's host names
-add a license
 containerize it
 update README, also with screenshots
 add AI and usage disclaimer
 check load and disk pressure
-give it a logo
 describe how to run it
 try [bubbletea](github.com/charmbracelet/bubbletea) and [github.com/charmbracelet/lipgloss](lipgloss)
 add "buttons" to enable touchscreen usage
-build releases, publish on GitHub
 add a screensaver option
+provide a tldr
