@@ -74,11 +74,12 @@ var metricLabels = [metricCount]string{"CPU", "RAM", "DISK", "TEMP", "NET"}
 // Hosts are laid out side by side to suit a wide, short display.
 type dashboard struct {
 	ui.Block
-	cfg   config
-	th    *theme
-	spark sparkGlyphSet
-	hosts []*hostState
-	now   time.Time
+	cfg    config
+	th     *theme
+	spark  sparkGlyphSet
+	hosts  []*hostState
+	alerts *alerter // nil without Telegram
+	now    time.Time
 }
 
 func newDashboard(cfg config, hosts []*hostState) *dashboard {
@@ -130,11 +131,15 @@ func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 	if up < len(d.hosts) {
 		upStyle = d.th.warn
 	}
-	x = putString(buf, "  HOSTS ", d.th.label, x, r.Min.Y, r.Max.X)
-	putString(buf, fmt.Sprintf("%d/%d UP", up, len(d.hosts)), upStyle, x, r.Min.Y, r.Max.X)
-
 	right := d.now.Format("15:04:05") + "  q quit  r refresh "
-	putString(buf, right, d.th.label, r.Max.X-rw.StringWidth(right), r.Min.Y, r.Max.X)
+	rightX := r.Max.X - rw.StringWidth(right)
+	x = putString(buf, "  HOSTS ", d.th.label, x, r.Min.Y, rightX)
+	x = putString(buf, fmt.Sprintf("%d/%d UP", up, len(d.hosts)), upStyle, x, r.Min.Y, rightX)
+	if d.alerts != nil && d.alerts.lastErr != nil {
+		x = putString(buf, "  TELEGRAM ", d.th.label, x, r.Min.Y, rightX)
+		putString(buf, shortErr(d.alerts.lastErr), d.th.warn, x, r.Min.Y, rightX-1)
+	}
+	putString(buf, right, d.th.label, rightX, r.Min.Y, r.Max.X)
 }
 
 func (d *dashboard) drawHost(buf *ui.Buffer, h *hostState, r image.Rectangle) {

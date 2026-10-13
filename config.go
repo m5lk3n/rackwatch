@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -19,6 +21,7 @@ type config struct {
 	Dashboard   dashboardConfig   `toml:"dashboard"`
 	Screensaver screensaverConfig `toml:"screensaver"`
 	Thresholds  thresholdsConfig  `toml:"thresholds"`
+	Telegram    telegramConfig    `toml:"telegram"`
 	Hosts       []hostConfig      `toml:"hosts"`
 }
 
@@ -39,6 +42,41 @@ type screensaverConfig struct {
 	Enabled  bool     `toml:"enabled"`
 	Interval duration `toml:"interval"` // how often it starts
 	Duration duration `toml:"duration"` // how long it runs
+}
+
+type telegramConfig struct {
+	Enabled    bool      `toml:"enabled"`
+	BotToken   string    `toml:"bot_token"`
+	ChatID     chatID    `toml:"chat_id"`
+	QuietFrom  clockTime `toml:"quiet_from"`  // no messages from this time...
+	QuietUntil clockTime `toml:"quiet_until"` // ...until this one
+}
+
+// chatID accepts a numeric chat ID as well as a "@channel" name.
+type chatID string
+
+func (c *chatID) UnmarshalTOML(v any) error {
+	switch v := v.(type) {
+	case int64:
+		*c = chatID(strconv.FormatInt(v, 10))
+	case string:
+		*c = chatID(v)
+	default:
+		return fmt.Errorf("chat_id must be a number or a string, got %T", v)
+	}
+	return nil
+}
+
+// clockTime is a time of day in minutes after midnight, written as "23:00".
+type clockTime int
+
+func (c *clockTime) UnmarshalText(b []byte) error {
+	t, err := time.Parse("15:04", string(b))
+	if err != nil {
+		return fmt.Errorf("want a time of day like \"23:00\", got %q", b)
+	}
+	*c = clockTime(t.Hour()*60 + t.Minute())
+	return nil
 }
 
 type thresholdsConfig struct {
@@ -81,6 +119,10 @@ func defaultConfig() config {
 			Enabled:  true,
 			Interval: duration{10 * time.Minute},
 			Duration: duration{10 * time.Second},
+		},
+		Telegram: telegramConfig{
+			QuietFrom:  23 * 60,
+			QuietUntil: 8 * 60,
 		},
 		Thresholds: thresholdsConfig{
 			CPUWarning:         80,
@@ -146,6 +188,12 @@ func (c config) validate() error {
 	}
 	if s := c.Screensaver; s.Enabled && (s.Duration.Duration <= 0 || s.Interval.Duration <= s.Duration.Duration) {
 		return errors.New("screensaver.duration must be positive and shorter than screensaver.interval")
+	}
+	if t := c.Telegram; t.Enabled && (t.BotToken == "" || !strings.Contains(t.BotToken, ":")) {
+		return errors.New("telegram.bot_token must be set to the token from @BotFather, like \"123456:ABC-DEF...\"")
+	}
+	if t := c.Telegram; t.Enabled && t.ChatID == "" {
+		return errors.New("telegram.chat_id must be set")
 	}
 	if _, ok := themes[c.Dashboard.Theme]; !ok {
 		return fmt.Errorf("dashboard.theme: unknown theme %q (available: %s)", c.Dashboard.Theme, themeNames())

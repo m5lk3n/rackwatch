@@ -1,4 +1,3 @@
-(A) integrate with Telegram
 containerize it
 update README, also with screenshots
 check load and disk pressure

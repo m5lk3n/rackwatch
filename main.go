@@ -43,7 +43,22 @@ func run(cfg config) error {
 	}
 	defer ui.Close()
 
+	// Telegram alerts are sent in the background, like polls. Without them
+	// alertResults stays nil and quiet.
+	var alerts *alerter
+	var alertResults <-chan alertResult
+	if cfg.Telegram.Enabled {
+		alerts = newAlerter(cfg.Telegram, len(hosts))
+		alertResults = alerts.results
+	}
+	checkAlerts := func() {
+		if alerts != nil {
+			alerts.check(time.Now(), hosts, cfg.Dashboard.StaleAfter.Duration)
+		}
+	}
+
 	dash := newDashboard(cfg, hosts)
+	dash.alerts = alerts
 	saver := newMatrixRain(console)
 	saverOn := false
 	render := func() {
@@ -133,9 +148,14 @@ func run(cfg config) error {
 			render()
 		case r := <-results:
 			hosts[r.host].apply(r)
+			checkAlerts()
+			render()
+		case r := <-alertResults:
+			alerts.apply(r, time.Now())
 			render()
 		case <-ticker.C:
 			pollAll()
+			checkAlerts()
 			render()
 		case <-saverStart:
 			startSaver()

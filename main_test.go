@@ -448,3 +448,193 @@ func TestScreensaver(t *testing.T) {
 		}
 	}
 }
+
+func TestTelegramQuietHours(t *testing.T) {
+	at := func(hh, mm int) time.Time { return time.Date(2026, 10, 13, hh, mm, 0, 0, time.Local) }
+	cfg := defaultConfig().Telegram
+	for _, c := range []struct {
+		hh, mm int
+		quiet  bool
+	}{{22, 59, false}, {23, 0, true}, {3, 0, true}, {7, 59, true}, {8, 0, false}, {12, 0, false}} {
+		if got := cfg.quiet(at(c.hh, c.mm)); got != c.quiet {
+			t.Errorf("default quiet at %02d:%02d = %v, want %v", c.hh, c.mm, got, c.quiet)
+		}
+	}
+	cfg.QuietFrom, cfg.QuietUntil = 9*60, 17*60
+	if !cfg.quiet(at(12, 0)) || cfg.quiet(at(17, 0)) || cfg.quiet(at(8, 59)) {
+		t.Error("09:00-17:00 quiet hours wrong")
+	}
+	cfg.QuietUntil = cfg.QuietFrom
+	if cfg.quiet(at(9, 0)) {
+		t.Error("equal quiet_from and quiet_until should disable quiet hours")
+	}
+}
+
+func TestTelegramConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	write := func(telegram string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(telegram+"\n[[hosts]]\nname = \"a\"\nmetrics_source = \"local\"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write("[telegram]\nenabled = true\nbot_token = \"123:abc\"\nchat_id = -1001234\nquiet_from = \"22:30\"\nquiet_until = \"06:15\"\n")
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tg := cfg.Telegram; tg.ChatID != "-1001234" || tg.QuietFrom != 22*60+30 || tg.QuietUntil != 6*60+15 {
+		t.Errorf("telegram = %+v", tg)
+	}
+
+	write("[telegram]\nenabled = true\nbot_token = \"123:abc\"\nchat_id = \"@rack\"\n")
+	if cfg, err := loadConfig(path); err != nil || cfg.Telegram.ChatID != "@rack" || cfg.Telegram.QuietFrom != 23*60 {
+		t.Errorf("string chat_id: %v, %+v", err, cfg.Telegram)
+	}
+
+	for _, bad := range []string{
+		"[telegram]\nenabled = true\nchat_id = 1\n",
+		"[telegram]\nenabled = true\nbot_token = \"123:abc\"\n",
+		"[telegram]\nquiet_from = \"11pm\"\n",
+	} {
+		write(bad)
+		if _, err := loadConfig(path); err == nil {
+			t.Errorf("accepted %q, want error", bad)
+		}
+	}
+
+	write("[telegram]\nenabled = false\n")
+	if _, err := loadConfig(path); err != nil {
+		t.Errorf("disabled telegram without token rejected: %v", err)
+	}
+}
+
+func TestAlerter(t *testing.T) {
+	hosts := []*hostState{
+		newHostState(hostConfig{Name: "rack-01", MetricsSource: sourceLocal}),
+		newHostState(hostConfig{Name: "rack-02", MetricsSource: sourceLocal}),
+	}
+	staleAfter := 5 * time.Minute
+	noon := time.Date(2026, 10, 13, 12, 0, 0, 0, time.Local)
+	a := newAlerter(defaultConfig().Telegram, len(hosts))
+	var sent []string
+	var fail error
+	a.send = func(_ context.Context, text string) error {
+		sent = append(sent, text)
+		return fail
+	}
+	// check sends in the background; wait for and apply every result.
+	check := func(now time.Time) {
+		t.Helper()
+		a.check(now, hosts, staleAfter)
+		for i := range a.inFlight {
+			if a.inFlight[i] {
+				a.apply(<-a.results, now)
+			}
+		}
+	}
+	ok := func(h *hostState, at time.Time) { h.apply(pollResult{sample: rawSample{at: at}}) }
+	failed := func(h *hostState) { h.apply(pollResult{err: errors.New("connection refused")}) }
+
+	// Waiting hosts and healthy ones aren't reported.
+	check(noon)
+	ok(hosts[0], noon)
+	check(noon)
+	if len(sent) != 0 {
+		t.Fatalf("sent %q for healthy hosts", sent)
+	}
+
+	// Never reached: reported at once. A single failure isn't reported until stale.
+	failed(hosts[1])
+	failed(hosts[0])
+	check(noon.Add(time.Minute))
+	if len(sent) != 1 || !strings.Contains(sent[0], "rack-02 is down: connection refused") {
+		t.Fatalf("sent %q, want rack-02 down", sent)
+	}
+	check(noon.Add(6 * time.Minute))
+	if len(sent) != 2 || !strings.Contains(sent[1], "rack-01 is not reachable, no data since 12:00: connection refused") {
+		t.Fatalf("sent %q, want rack-01 unreachable", sent)
+	}
+	check(noon.Add(7 * time.Minute))
+	if len(sent) != 2 {
+		t.Fatalf("sent %q, want no repeat", sent)
+	}
+
+	// Recovery.
+	ok(hosts[0], noon.Add(20*time.Minute))
+	check(noon.Add(20 * time.Minute))
+	if len(sent) != 3 || !strings.Contains(sent[2], "rack-01 is back up after 20m") {
+		t.Fatalf("sent %q, want rack-01 back up", sent)
+	}
+
+	// A failed send shows in lastErr and is retried after sendRetry.
+	fail = errors.New("Unauthorized")
+	ok(hosts[1], noon.Add(21*time.Minute))
+	check(noon.Add(21 * time.Minute))
+	if a.lastErr == nil || len(sent) != 4 {
+		t.Fatalf("lastErr = %v after failed send", a.lastErr)
+	}
+	fail = nil
+	check(noon.Add(21*time.Minute + 30*time.Second))
+	if len(sent) != 4 {
+		t.Fatal("retried before sendRetry")
+	}
+	check(noon.Add(22 * time.Minute))
+	if len(sent) != 5 || a.lastErr != nil || !strings.Contains(sent[4], "rack-02 is back up") {
+		t.Fatalf("sent %q, lastErr %v, want rack-02 back up", sent, a.lastErr)
+	}
+
+	// Quiet hours: an outage that ends in them is never reported; one still
+	// going when they end is reported then.
+	night := time.Date(2026, 10, 14, 1, 0, 0, 0, time.Local)
+	ok(hosts[0], night)
+	ok(hosts[1], night)
+	failed(hosts[0])
+	failed(hosts[1])
+	check(night.Add(time.Hour))
+	ok(hosts[0], night.Add(2*time.Hour))
+	check(night.Add(2 * time.Hour))
+	if len(sent) != 5 {
+		t.Fatalf("sent %q during quiet hours", sent[5:])
+	}
+	ok(hosts[0], night.Add(7*time.Hour))
+	check(night.Add(7 * time.Hour))
+	if len(sent) != 6 || !strings.Contains(sent[5], "rack-02 is not reachable, no data since 01:00") {
+		t.Fatalf("sent %q, want only rack-02 at 08:00", sent[5:])
+	}
+}
+
+func TestTelegramSendMessage(t *testing.T) {
+	var path, chat, text string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path, chat, text = r.URL.Path, r.FormValue("chat_id"), r.FormValue("text")
+		if chat == "bad" {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`))
+			return
+		}
+		w.Write([]byte(`{"ok":true,"result":{}}`))
+	}))
+	defer srv.Close()
+	defer func(api string) { telegramAPI = api }(telegramAPI)
+	telegramAPI = srv.URL
+
+	cfg := telegramConfig{BotToken: "123:secret", ChatID: "-42"}
+	if err := cfg.sendMessage(context.Background(), "🔴 rack-02 is down"); err != nil {
+		t.Fatal(err)
+	}
+	if path != "/bot123:secret/sendMessage" || chat != "-42" || text != "🔴 rack-02 is down" {
+		t.Errorf("request = %s chat_id=%s text=%q", path, chat, text)
+	}
+	cfg.ChatID = "bad"
+	if err := cfg.sendMessage(context.Background(), "x"); err == nil || err.Error() != "Bad Request: chat not found" {
+		t.Errorf("err = %v, want Telegram's description", err)
+	}
+
+	telegramAPI = "http://127.0.0.1:1"
+	err := cfg.sendMessage(context.Background(), "x")
+	if err == nil || strings.Contains(err.Error(), "secret") {
+		t.Errorf("err = %v, want an error without the bot token", err)
+	}
+}

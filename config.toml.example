@@ -19,6 +19,15 @@ enabled = true
 interval = "10m"
 duration = "10s"
 
+[telegram]
+# message a chat when a host goes down or recovers; see README for setup
+enabled = false
+bot_token = "123456789:ABC-your-token-from-BotFather"
+chat_id = 123456789 # or "@channelname"
+# no messages in this period (local time); outages still going when it ends are sent then
+quiet_from = "23:00"
+quiet_until = "08:00"
+
 [thresholds]
 cpu_warning = 80
 memory_warning = 85

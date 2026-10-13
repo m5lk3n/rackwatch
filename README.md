@@ -12,7 +12,7 @@
   <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-green"/>
 </p>
 <p align="center">
-  <img src="images/rackwatch.png" alt="rackwatch screenshot"/>
+  <img src="images/screenshot.png" alt="rackwatch screenshot"/>
 </p>
 <!-- markdownlint-enable MD033 -->
 
@@ -63,6 +63,10 @@ See [config.toml.example](config.toml.example) for a full example.
 | `screensaver.enabled` | Show the digital rain from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
 | `screensaver.interval` | How often the screensaver starts, e.g. `"10m"` (default `"10m"`) |
 | `screensaver.duration` | How long it runs, e.g. `"10s"`. Must be shorter than `interval` (default `"10s"`) |
+| `telegram.enabled` | Send a Telegram message when a host goes down or recovers, see [Telegram alerts](#telegram-alerts) (default `false`) |
+| `telegram.bot_token` | The bot's token from [@BotFather](https://t.me/BotFather), e.g. `"123456789:ABC-DEF..."` |
+| `telegram.chat_id` | Where to send messages: a numeric chat ID, or `"@channelname"` for a public channel |
+| `telegram.quiet_from`, `quiet_until` | No messages between these times, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C. |
 | `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured. |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
@@ -115,6 +119,31 @@ If that prints a line, the TUI can read the host.
 - **Wrong responses are errors too.** A non-200 response, or a page that doesn't look like node_exporter output, counts as a failure rather than showing zeros. If a counter goes backwards (a reboot or exporter restart), that one reading's CPU and network rates are skipped instead of showing a nonsense value.
 - **Thresholds are highlighted.** Values at or above `[thresholds]` are highlighted, and so are the individual sparkline bars that crossed them. The highlight is each theme's orange.
 
+## Telegram alerts
+
+With `[telegram]` enabled, rackwatch messages a chat when a host goes down and again when it recovers:
+
+```text
+🔴 rackbox-02 is not reachable, no data since 14:02: connection refused
+🟢 rackbox-02 is back up after 25m
+```
+
+- **Down** means the panel shows STALE or DOWN. One failed fetch isn't enough: a host that was up is reported once its data is older than `stale_after`. A host that has never answered since rackwatch started is reported right away.
+- **Quiet hours** hold messages back rather than dropping them. When they end, any host that's still down, or that recovered from an outage you were told about, is reported then. An outage that starts and ends within quiet hours isn't reported at all.
+- **Failed sends** show in the header as `TELEGRAM` and the error (e.g. `Unauthorized`, `Bad Request: chat not found`) and are retried a minute later. Messages are sent in the background, so a slow or unreachable Telegram never blocks the screen.
+
+To set it up:
+
+1. Message [@BotFather](https://t.me/BotFather) in Telegram, send `/newbot` and follow the steps. Put the token it gives you in `bot_token`. Anyone with the token can control the bot, **so keep `config.toml` private**; it's already in `.gitignore`.
+2. Send your new bot any message, so it's allowed to message you back. For a group, add the bot to the group instead.
+3. Look up the chat ID, then put it in `chat_id`:
+
+   ```sh
+   curl -s https://api.telegram.org/bot<token>/getUpdates | grep -o '"chat":{"id":-\?[0-9]*'
+   ```
+
+   Group IDs are negative, e.g. `-1001234567890`.
+
 ## Files
 
 | File | Contents |
@@ -124,8 +153,9 @@ If that prints a line, the TUI can read the host.
 | [collect.go](collect.go) | Collects metrics. `local` reads `/proc`, `statfs("/")` and the hwmon/thermal sensors. URLs are parsed as node_exporter output without an extra dependency. |
 | [host.go](host.go) | Per-host state, the ring buffer of recent samples, and the status logic |
 | [view.go](view.go) | Drawing |
+| [telegram.go](telegram.go) | Telegram alerts: when to send, quiet hours, and the Bot API call |
 | [theme.go](theme.go) | Theme definitions. To add one, write another function and add it to the `themes` map. Styles use the 16 color slots, with only the first 8 as backgrounds, or the theme breaks on the Linux console; a test checks this. To use custom colors, set `palette` with the RGB value of each slot, as the Prot16 themes do. For another Prot16 dark variant, or any palette laid out the same way (as the default theme is), pass its 16 colors to `prot16Dark`. |
-| [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, and rendering |
+| [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, rendering, and Telegram alerts |
 
 ## Limitations
 

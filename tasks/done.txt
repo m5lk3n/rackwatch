@@ -4,3 +4,4 @@ x 2026-10-13 build releases, publish on GitHub
 x 2026-10-13 give it a logo
 x 2026-10-13 add AI and usage disclaimer
 x 2026-10-13 add a screensaver option
+x 2026-10-13 integrate with Telegram
