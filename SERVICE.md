@@ -26,21 +26,23 @@ Dashboard visible immediately after boot
 
 ## 1. Create a systemd service
 
-Assuming your Go binary is installed at `/opt/rackwatch/rackwatch`, create:
+Assuming your Go binary is installed at `/opt/rackwatch/rackwatch` and its config at `/etc/rackwatch/config.toml`, create:
 
 `/etc/systemd/system/rackwatch.service`
 
-```sh
-
+```ini
 [Unit]
 Description=Rackwatch terminal dashboard
-After=local-fs.target
 Wants=network-online.target
 After=network-online.target
+# Rackwatch and the login prompt can't share TTY1
+Conflicts=getty@tty1.service
+After=getty@tty1.service
 
 [Service]
 Type=simple
-ExecStart=/opt/rackwatch/rackwatch
+User=rackwatch
+ExecStart=/opt/rackwatch/rackwatch -config /etc/rackwatch/config.toml
 Restart=always
 RestartSec=2
 
@@ -57,10 +59,23 @@ Environment=TERM=linux
 
 [Install]
 WantedBy=multi-user.target
-
 ```
 
-This is the basic configuration. For a production installation, I'd also run the application with a dedicated unprivileged service account, ensure it can access its configuration, and arrange for the service to own the terminal without competing with a login prompt.
+The service runs as the unprivileged `rackwatch` user. Create that account and let it read the config, which holds the Telegram bot token, so keep it from other users:
+
+```sh
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin rackwatch
+sudo chown root:rackwatch /etc/rackwatch/config.toml
+sudo chmod 640 /etc/rackwatch/config.toml
+```
+
+With a touchscreen (`[touch]` in the config), the account also needs to read the input devices:
+
+```sh
+sudo usermod -aG input rackwatch
+```
+
+`Conflicts=getty@tty1.service` stops the login prompt on TTY1 whenever Rackwatch starts.
 
 ## 2. Enable it at boot
 
@@ -72,7 +87,7 @@ sudo systemctl enable rackwatch.service
 sudo systemctl start rackwatch.service
 ```
 
-Important: TTY1 may already be occupied by Linux's login prompt (`getty`). If it is, disable that prompt so it doesn't compete with Rackwatch:
+Important: TTY1 is normally occupied by Linux's login prompt (`getty`). `Conflicts=` makes sure the two never run at the same time, but also disable the prompt so it isn't started at boot in the first place:
 
 ```sh
 sudo systemctl disable --now getty@tty1.service
@@ -93,19 +108,9 @@ If the dashboard crashes, `Restart=always` tells systemd to launch it again.
 
 - Boot splash: You may briefly see boot messages before Rackwatch starts. You can configure a quieter boot later.
 - Resolution: This service doesn't configure the display mode. Make sure Linux itself outputs 1424 × 280 before troubleshooting the TUI layout.
-- Security: Don't run the monitoring application as root unless it genuinely needs elevated privileges.
+- Security: Rackwatch only reads `/proc`, `/sys` and its config, so it doesn't need root. Turning the display off at night works without root too, because TTY1 is its controlling terminal.
 - Recovery: Test a reboot and a simulated application failure before relying on it as an appliance.
 
 One subtle point: `TTYPath=/dev/tty1` assumes the display is attached to the machine running Rackwatch. If the screen is connected to another device, this approach needs to change.
 
 My recommendation: Use a system-level systemd service attached to TTY1. It is lightweight, reliable, and a natural fit for an always-on, read-only Go TUI. No manual login is needed after the initial setup.
-
----
-
-To enable a login prompt on TTY2:
-
-```sh
-sudo systemctl enable --now getty@tty2.service
-```
-
-Keep your Rackwatch service attached to TTY1 and don't disable `getty@tty2.service`.

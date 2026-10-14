@@ -20,8 +20,10 @@ const maxHosts = 10
 type config struct {
 	Dashboard   dashboardConfig   `toml:"dashboard"`
 	Screensaver screensaverConfig `toml:"screensaver"`
+	Blackout    blackoutConfig    `toml:"blackout"`
 	Thresholds  thresholdsConfig  `toml:"thresholds"`
 	Telegram    telegramConfig    `toml:"telegram"`
+	Touch       touchConfig       `toml:"touch"`
 	Hosts       []hostConfig      `toml:"hosts"`
 }
 
@@ -44,12 +46,26 @@ type screensaverConfig struct {
 	Duration duration `toml:"duration"` // how long it runs
 }
 
+type blackoutConfig struct {
+	Enabled bool      `toml:"enabled"`
+	From    clockTime `toml:"from"`  // the screen is black from this time...
+	Until   clockTime `toml:"until"` // ...until this one
+}
+
 type telegramConfig struct {
 	Enabled    bool      `toml:"enabled"`
 	BotToken   string    `toml:"bot_token"`
 	ChatID     chatID    `toml:"chat_id"`
 	QuietFrom  clockTime `toml:"quiet_from"`  // no messages from this time...
 	QuietUntil clockTime `toml:"quiet_until"` // ...until this one
+}
+
+type touchConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Device  string `toml:"device"`   // the touchscreen's /dev/input/event* device
+	SwapXY  bool   `toml:"swap_xy"`  // the touchscreen is turned a quarter against the display
+	InvertX bool   `toml:"invert_x"` // left and right are the wrong way round
+	InvertY bool   `toml:"invert_y"` // top and bottom are the wrong way round
 }
 
 // chatID accepts a numeric chat ID as well as a "@channel" name.
@@ -77,6 +93,20 @@ func (c *clockTime) UnmarshalText(b []byte) error {
 	}
 	*c = clockTime(t.Hour()*60 + t.Minute())
 	return nil
+}
+
+// within reports whether now, in the local time of this machine, falls between
+// from and until. The period may wrap past midnight; equal ends make it empty.
+func within(now time.Time, from, until clockTime) bool {
+	m := clockTime(now.Hour()*60 + now.Minute())
+	switch {
+	case from == until:
+		return false
+	case from < until:
+		return m >= from && m < until
+	default:
+		return m >= from || m < until
+	}
 }
 
 type thresholdsConfig struct {
@@ -119,6 +149,11 @@ func defaultConfig() config {
 			Enabled:  true,
 			Interval: duration{10 * time.Minute},
 			Duration: duration{10 * time.Second},
+		},
+		Blackout: blackoutConfig{
+			Enabled: true,
+			From:    23 * 60,
+			Until:   8 * 60,
 		},
 		Telegram: telegramConfig{
 			QuietFrom:  23 * 60,
@@ -194,6 +229,9 @@ func (c config) validate() error {
 	}
 	if t := c.Telegram; t.Enabled && t.ChatID == "" {
 		return errors.New("telegram.chat_id must be set")
+	}
+	if t := c.Touch; t.Enabled && t.Device == "" {
+		return errors.New("touch.device must be set, like \"/dev/input/by-id/usb-...-event-if00\"")
 	}
 	if _, ok := themes[c.Dashboard.Theme]; !ok {
 		return fmt.Errorf("dashboard.theme: unknown theme %q (available: %s)", c.Dashboard.Theme, themeNames())

@@ -113,16 +113,7 @@ func alertText(h *hostState, st hostStatus, now, since time.Time) string {
 // quiet reports whether t, in the local time of this machine, falls within the
 // quiet hours. The period may wrap past midnight; equal ends disable it.
 func (t telegramConfig) quiet(now time.Time) bool {
-	m := clockTime(now.Hour()*60 + now.Minute())
-	from, until := t.QuietFrom, t.QuietUntil
-	switch {
-	case from == until:
-		return false
-	case from < until:
-		return m >= from && m < until
-	default:
-		return m >= from || m < until
-	}
+	return within(now, t.QuietFrom, t.QuietUntil)
 }
 
 func (t telegramConfig) sendMessage(ctx context.Context, text string) error {

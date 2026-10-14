@@ -1,5 +1,7 @@
 # grab the latest git tag, remove the 'v' prefix if present, and handle dirty/dev commits
 VERSION ?= $(shell git describe --tags --always --dirty | sed 's/^v//')
+# who built the binary, shown by `rackwatch version`; CI overrides this
+BUILT_BY ?= $(shell whoami)
 
 ## help: print this help message
 .PHONY: help
@@ -14,7 +16,7 @@ help:
 .PHONY: build
 build:
 	@echo "Building rackwatch version $(VERSION)"
-	@go build -ldflags "-X main.version=$(VERSION)"
+	@go build -ldflags "-X main.version=$(VERSION) -X 'main.builtBy=$(BUILT_BY)'"
 
 ## test: run tests
 .PHONY: test

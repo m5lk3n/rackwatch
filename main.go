@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -9,19 +10,32 @@ import (
 	ui "github.com/metaspartan/gotui"
 )
 
-// version is set at build time via -ldflags "-X main.version=..." (see Makefile).
-var version = "dev"
+// version and builtBy are set at build time via -ldflags "-X main.version=..."
+// and "-X main.builtBy=..." (see Makefile).
+var (
+	version = "dev"
+	builtBy = "dev"
+)
 
 func main() {
 	configPath := flag.String("config", "config.toml", "path to the TOML config file")
 	flag.Parse()
+
+	if flag.Arg(0) == "version" {
+		fmt.Printf("rackwatch %s (built by %s)\n", version, builtBy)
+		return
+	}
 
 	cfg, err := loadConfig(*configPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "rackwatch:", err)
 		os.Exit(1)
 	}
-	if err := run(cfg); err != nil {
+	err = run(cfg)
+	if errors.Is(err, errRestart) {
+		err = restartSelf()
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "rackwatch:", err)
 		os.Exit(1)
 	}
@@ -61,8 +75,55 @@ func run(cfg config) error {
 	dash.alerts = alerts
 	saver := newMatrixRain(console)
 	saverOn := false
+	// The black-out period blanks the screen, and on the Linux console turns
+	// the display off; a key or touch shows the dashboard for blackoutWake.
+	// Polls and alerts carry on meanwhile.
+	black := newBlank(console)
+	dark := false           // the black-out screen is showing
+	var wakeUntil time.Time // during black-out, a key or touch shows the dashboard until then
+	var stopSaver func()
+	defer func() {
+		if dark && console {
+			blankConsole(false)
+		}
+	}()
+	updateDark := func(now time.Time) {
+		want := cfg.Blackout.active(now) && !now.Before(wakeUntil)
+		if want == dark {
+			return
+		}
+		dark = want
+		if dark {
+			blackoutLog.Print("screen off")
+			stopSaver()
+			if console {
+				black.th.setConsolePalette(os.Stdout)
+				// Draw the black screen before switching the display off: the
+				// console draws nothing while blanked, and if the display comes
+				// back on by itself it shows what was drawn last.
+				w, h := ui.TerminalDimensions()
+				black.SetRect(0, 0, w, h)
+				ui.Render(black)
+				blankConsole(true)
+			}
+			return
+		}
+		blackoutLog.Print("screen on")
+		// The black screen covers the margins too, which the dashboard doesn't repaint.
+		ui.Clear()
+		if console {
+			blankConsole(false)
+			themes[cfg.Dashboard.Theme].setConsolePalette(os.Stdout)
+		}
+	}
 	render := func() {
+		updateDark(time.Now())
 		w, h := ui.TerminalDimensions()
+		if dark {
+			black.SetRect(0, 0, w, h)
+			ui.Render(black)
+			return
+		}
 		if saverOn {
 			saver.SetRect(0, 0, w, h)
 			ui.Render(saver)
@@ -76,7 +137,7 @@ func run(cfg config) error {
 	}
 
 	// The screensaver starts every interval and runs for duration, or until a
-	// key or the mouse is used. Nil channels stay quiet while it's off.
+	// key, click or touch. Nil channels stay quiet while it's off.
 	var saverStart, saverEnd, frames <-chan time.Time
 	var frameTicker *time.Ticker
 	if cfg.Screensaver.Enabled {
@@ -84,7 +145,13 @@ func run(cfg config) error {
 		defer t.Stop()
 		saverStart = t.C
 	}
-	stopSaver := func() {
+	var blackoutTicks <-chan time.Time
+	if cfg.Blackout.Enabled {
+		t := time.NewTicker(blackoutCheck)
+		defer t.Stop()
+		blackoutTicks = t.C
+	}
+	stopSaver = func() {
 		if !saverOn {
 			return
 		}
@@ -126,16 +193,64 @@ func run(cfg config) error {
 	pollAll()
 	render()
 
+	// A tap on restart arms it; a second tap before restartEnd fires restarts.
+	var touch touchTracker
+	var restartEnd <-chan time.Time
+	disarm := func() {
+		dash.restartArmed = false
+		restartEnd = nil
+	}
+
 	ticker := time.NewTicker(cfg.refresh())
 	defer ticker.Stop()
 	events := ui.PollEvents()
+	if cfg.Touch.Enabled {
+		// Touches come in alongside the terminal's events, as mouse events.
+		merged := make(chan ui.Event)
+		go func(terminal <-chan ui.Event) {
+			for e := range terminal {
+				merged <- e
+			}
+		}(events)
+		go readTouchscreen(cfg.Touch, merged)
+		events = merged
+	}
 	for {
 		select {
 		case e := <-events:
-			if saverOn && e.Type != ui.ResizeEvent && e.ID != "<C-c>" {
+			// Tracked before the screensaver and black-out see the event, so
+			// the finger that ends them doesn't also tap a button.
+			at, tapped := touch.tap(e)
+			if now := time.Now(); deliberate(e) && e.ID != "<C-c>" && cfg.Blackout.active(now) {
+				// Keep the dashboard up while it's being used.
+				if dark {
+					blackoutLog.Printf("woken by %s", e.ID)
+				}
+				wakeUntil = now.Add(blackoutWake)
+				if dark {
+					render()
+					continue
+				}
+			}
+			if saverOn && deliberate(e) && e.ID != "<C-c>" {
 				stopSaver()
 				render()
 				continue
+			}
+			if tapped {
+				switch buttonAt(dash.buttons, at.X, at.Y) {
+				case buttonRestart:
+					if dash.restartArmed {
+						return errRestart
+					}
+					dash.restartArmed = true
+					restartEnd = time.After(restartConfirm)
+				case buttonRefresh:
+					disarm()
+					pollAll()
+				default:
+					disarm()
+				}
 			}
 			switch e.ID {
 			case "q", "<C-c>", "<Escape>":
@@ -158,13 +273,20 @@ func run(cfg config) error {
 			checkAlerts()
 			render()
 		case <-saverStart:
-			startSaver()
+			if !dark {
+				startSaver()
+			}
 			render()
 		case <-frames:
 			saver.step()
 			render()
 		case <-saverEnd:
 			stopSaver()
+			render()
+		case <-blackoutTicks:
+			render()
+		case <-restartEnd:
+			disarm()
 			render()
 		}
 	}

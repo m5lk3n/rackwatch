@@ -16,8 +16,14 @@ margin_right = 4
 [screensaver]
 # digital rain from The Matrix; any key or touch ends it early
 enabled = true
-interval = "10m"
+interval = "5m"
 duration = "10s"
+
+[blackout]
+# black screen in this period (local time); a key or touch shows the dashboard for a minute
+enabled = true
+from = "23:00"
+until = "08:00"
 
 [telegram]
 # message a chat when a host goes down or recovers; see README for setup
@@ -27,6 +33,17 @@ chat_id = 123456789 # or "@channelname"
 # no messages in this period (local time); outages still going when it ends are sent then
 quiet_from = "23:00"
 quiet_until = "08:00"
+
+[touch]
+# read a touchscreen directly, for the Linux text console, where taps don't reach rackwatch otherwise;
+# find the device with: ls /dev/input/by-id/ (the one ending in -event-if00, or check with evtest);
+# the user running rackwatch must be in the input group, see "Touchscreen" in the README
+enabled = false
+device = "/dev/input/by-id/usb-wch.cn_TouchScreen_9LQ0172005164-event-if00"
+# if taps land in the wrong place: the touchscreen is turned against the display, or mirrored
+swap_xy = false
+invert_x = false
+invert_y = false
 
 [thresholds]
 cpu_warning = 80

@@ -1,7 +1,4 @@
-containerize it
-update README, also with screenshots
-check load and disk pressure
-describe how to run it
-try [bubbletea](github.com/charmbracelet/bubbletea) and [github.com/charmbracelet/lipgloss](lipgloss)
-add "buttons" to enable touchscreen usage
-provide a tldr
+update README with latest screenshot
+simplify the README, provide a TLDR section
+turn SERVICE.md into a proper INSTALL.md, outline install.sh
+release 1.0.0

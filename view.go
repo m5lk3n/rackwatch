@@ -80,6 +80,10 @@ type dashboard struct {
 	hosts  []*hostState
 	alerts *alerter // nil without Telegram
 	now    time.Time
+	// restartArmed shows the restart button asking for the confirming tap.
+	restartArmed bool
+	// buttons are where the header's buttons were drawn last, for taps.
+	buttons []headerButton
 }
 
 func newDashboard(cfg config, hosts []*hostState) *dashboard {
@@ -131,15 +135,33 @@ func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 	if up < len(d.hosts) {
 		upStyle = d.th.warn
 	}
-	right := d.now.Format("15:04:05") + "  q quit  r refresh "
-	rightX := r.Max.X - rw.StringWidth(right)
+	restart, restartStyle := "[ restart ]", d.th.label
+	if d.restartArmed {
+		restart, restartStyle = "[ restart? ]", d.th.warn
+	}
+	const refresh, gap = "[ refresh ]", "    "
+	clock := d.now.Format("15:04:05") + gap
+	rightX := r.Max.X - rw.StringWidth(clock+restart+gap+refresh+" ")
 	x = putString(buf, "  HOSTS ", d.th.label, x, r.Min.Y, rightX)
 	x = putString(buf, fmt.Sprintf("%d/%d UP", up, len(d.hosts)), upStyle, x, r.Min.Y, rightX)
 	if d.alerts != nil && d.alerts.lastErr != nil {
 		x = putString(buf, "  TELEGRAM ", d.th.label, x, r.Min.Y, rightX)
 		putString(buf, shortErr(d.alerts.lastErr), d.th.warn, x, r.Min.Y, rightX-1)
 	}
-	putString(buf, right, d.th.label, rightX, r.Min.Y, r.Max.X)
+	x = putString(buf, clock, d.th.label, rightX, r.Min.Y, r.Max.X)
+	d.buttons = d.buttons[:0]
+	for _, b := range []struct {
+		label  string
+		style  ui.Style
+		button touchButton
+	}{{restart, restartStyle, buttonRestart}, {refresh, d.th.label, buttonRefresh}} {
+		start := x
+		x = putString(buf, b.label, b.style, x, r.Min.Y, r.Max.X)
+		if x > start {
+			d.buttons = append(d.buttons, headerButton{image.Rect(start, r.Min.Y, x, r.Min.Y+1), b.button})
+		}
+		x = putString(buf, gap, d.th.label, x, r.Min.Y, r.Max.X)
+	}
 }
 
 func (d *dashboard) drawHost(buf *ui.Buffer, h *hostState, r image.Rectangle) {

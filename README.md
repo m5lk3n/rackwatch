@@ -5,7 +5,7 @@
   <img src="images/logo.png" alt="rackwatch logo" width="15%"/>
 </p>
 <p align="center">
-  A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history.
+  For a 1424 × 280 screen in your 10-inch rack: A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history. Comes with optional touch support, Telegram integration, and more.
 </p>
 <p align="center">
   <img alt="language" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white"/>
@@ -16,9 +16,19 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
+## Installation / Update
+
+Feel free to review the [install.sh](./install.sh) script.
+
+Run the same command for both, installation and update:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
+```
+
 ## Constraints
 
-- A 1424 × 280 screen in a 10-inch rack: about 178 × 17 cells with an 8 × 16 font.
+- A 1424 × 280 screen in a 10-inch rack: about 178 × 17 cells with an 8 × 16 font. Tested on a "GeeekPi 6,91 Zoll 1424x280 LCD Touchscreen".
 - The panel hides the console's top row, 5 columns on the left and 4 on the right, so the config sets `margin_top = 1`, `margin_left = 5` and `margin_right = 4`.
 - The screen is wide and short, so each host gets its own column. Sparklines grow to fill the height that's left.
 
@@ -40,12 +50,17 @@ make test
 cp config.toml.example config.toml      # then edit the hosts
 ./rackwatch                             # reads ./config.toml
 ./rackwatch -config path/to/config.toml
+./rackwatch version                     # prints the version and who built it
 ```
 
 | Key | Action |
 | --- | --- |
 | `r` | Refresh now |
 | `q`, `Esc`, `Ctrl-C` | Quit |
+
+On a touchscreen, or with a mouse, tap `[ refresh ]` in the header to refresh now. Tap `[ restart ]` and then `[ restart? ]` within 5 seconds to restart rackwatch with the same arguments; the second tap stops a stray touch from restarting it. A tap that ends the screensaver or wakes the screen during the black-out only does that. On the Linux text console, taps only reach rackwatch with [`touch`](#touchscreen) set up; in a terminal window they work as they are.
+
+CPU and NET show `--` until a host's second successful fetch, normally one `refresh_seconds` after startup. Both are rates, so they need two readings to compare. RAM, disk and temperature show up right away.
 
 ## Configuration
 
@@ -63,10 +78,15 @@ See [config.toml.example](config.toml.example) for a full example.
 | `screensaver.enabled` | Show the digital rain from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
 | `screensaver.interval` | How often the screensaver starts, e.g. `"10m"` (default `"10m"`) |
 | `screensaver.duration` | How long it runs, e.g. `"10s"`. Must be shorter than `interval` (default `"10s"`) |
+| `blackout.enabled` | Keep the screen black at night (default `true`). Any key or touch shows the dashboard for a minute (mouse movement doesn't count); polling and Telegram alerts carry on. The screensaver doesn't run while the screen is black. On the Linux console the display is also switched off with `setterm --blank force`, which can turn off the backlight too; this needs `setterm` (from util-linux) and the console to be rackwatch's controlling terminal, as when it runs as a service on a tty. When stderr isn't a terminal, as with the service, rackwatch logs when the screen goes off and on and what woke it, so `journalctl -u rackwatch` shows why it came back |
+| `blackout.from`, `until` | When the screen is black, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
 | `telegram.enabled` | Send a Telegram message when a host goes down or recovers, see [Telegram alerts](#telegram-alerts) (default `false`) |
 | `telegram.bot_token` | The bot's token from [@BotFather](https://t.me/BotFather), e.g. `"123456789:ABC-DEF..."` |
 | `telegram.chat_id` | Where to send messages: a numeric chat ID, or `"@channelname"` for a public channel |
 | `telegram.quiet_from`, `quiet_until` | No messages between these times, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
+| `touch.enabled` | Read a touchscreen directly on the Linux text console, see [Touchscreen](#touchscreen) (default `false`) |
+| `touch.device` | The touchscreen's input device, e.g. `"/dev/input/by-id/usb-…-event-if00"` |
+| `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C. |
 | `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured. |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
@@ -85,6 +105,30 @@ String values need quotes in TOML: `theme = "fortuna"`, not `theme = fortuna`. T
 
 On the Linux console, rackwatch loads the theme's colors into the console's 16 color slots at startup and restores the default colors on exit. If it is killed without a chance to clean up, run `setterm --reset` or `reset` to get them back.
 
+## Touchscreen
+
+In a terminal window, taps on a touchscreen reach rackwatch like mouse clicks, with nothing to set up. On the Linux text console nothing passes them on, except gpm, which treats a touchscreen as a mouse and misses where the finger is. There, rackwatch reads the touchscreen itself:
+
+1. Find the device. `ls -l /dev/input/by-id/` lists stable names, which survive a reboot or replugging, unlike `/dev/input/eventN`. A panel often shows up more than once, e.g. as `…-event-if00` and `…-if02-event-mouse`. Run `sudo evtest`, pick each `event` device in turn and tap the screen: the right one reports `ABS_X`, `ABS_Y` and `BTN_TOUCH`. In `/proc/bus/input/devices` it's usually the one with `PROP=2`.
+2. Let the user running rackwatch read it. Input devices belong to the `input` group, so without it rackwatch can't open the device; evtest only worked because of `sudo`. Add yourself, then **log out and back in**, since group changes only apply to new logins:
+
+   ```sh
+   sudo usermod -aG input $USER
+   ```
+
+   For the service, add the `rackwatch` user instead, see [SERVICE.md](SERVICE.md).
+3. Set it in the config:
+
+   ```toml
+   [touch]
+   enabled = true
+   device = "/dev/input/by-id/usb-wch.cn_TouchScreen_9LQ0172005164-event-if00"
+   ```
+
+If taps land in the wrong place, the touchscreen is turned or mirrored against the display: set `swap_xy`, `invert_x` or `invert_y` to `true`.
+
+If taps do nothing, look at why the device couldn't be read. If it's missing, unplugged or unreadable, rackwatch carries on without it and tries again every 5 seconds. It logs the reason to stderr, but only when stderr isn't the terminal, so the dashboard isn't garbled. With the service, `journalctl -u rackwatch | grep touch` shows it. Run directly, send stderr to a file: `./rackwatch 2>touch.log`. A device that opened logs `touch: reading …, x 0..N, y 0..M`; otherwise the log gives the error, most often `permission denied`.
+
 ## Setting up remote hosts
 
 Every host with a URL as its `metrics_source` must run [node_exporter](https://github.com/prometheus/node_exporter). It's the official Prometheus exporter for host metrics on Linux, but it isn't part of Prometheus and isn't installed by default on any distribution. Its default address, `:9100/metrics`, is the one the example config uses.
@@ -94,7 +138,11 @@ Other Prometheus-compatible exporters, such as Netdata or Telegraf, won't work. 
 | Distribution | Install | Service |
 | --- | --- | --- |
 | Arch Linux | `sudo pacman -S prometheus-node-exporter` | Enable it yourself: `sudo systemctl enable --now prometheus-node-exporter` |
-| Debian, Ubuntu | `sudo apt install prometheus-node-exporter` | Enabled and started on install. Set flags in `/etc/default/prometheus-node-exporter`. |
+| Debian, Ubuntu | `sudo apt install --no-install-recommends prometheus-node-exporter` | Enabled and started on install. Set flags in `/etc/default/prometheus-node-exporter`. |
+
+On Debian and Ubuntu, `--no-install-recommends` skips `prometheus-node-exporter-collectors`. That package adds systemd timers that run scripts for apt, SMART and NVMe metrics, and the TUI doesn't use any of them. Everything it reads comes from node_exporter's built-in collectors.
+
+node_exporter has a small footprint. It does nothing until the TUI fetches `/metrics`. Each fetch reads the kernel's in-memory `/proc` and `/sys` files, takes a few tens of milliseconds of CPU and doesn't touch the disk. node_exporter writes nothing to disk and stores no history. It typically uses 15–30 MB of RAM. The TUI keeps its history in memory, so remote hosts don't need a Prometheus server.
 
 **Very old releases:** node_exporter renamed its metrics in version 0.16 (2018), for example `node_cpu` to `node_cpu_seconds_total`. Ubuntu 18.04 ships an older version, so its hosts show as DOWN. Debian and Ubuntu releases from about 2019 onward work.
 

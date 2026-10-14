@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	rw "github.com/mattn/go-runewidth"
 	ui "github.com/metaspartan/gotui"
 )
 
@@ -308,6 +309,34 @@ func TestRender(t *testing.T) {
 	if lines := strings.Split(condensed.String(), "\n"); !strings.Contains(lines[2], "CPU") || !strings.Contains(lines[6], "NET") || !strings.Contains(lines[7], "╰") {
 		t.Errorf("condensed render should put CPU..NET on rows 2..6 and close the panel on row 7")
 	}
+	if got := buttonAt(d.buttons, 0, 0); got != buttonNone {
+		t.Errorf("tap on RACKWATCH hit button %d", got)
+	}
+	header := strings.Split(text, "\n")[0]
+	for _, b := range []struct {
+		label  string
+		button touchButton
+	}{{"[ restart ]", buttonRestart}, {"[ refresh ]", buttonRefresh}} {
+		x := rw.StringWidth(header[:strings.Index(header, b.label)])
+		// Both ends of the label, and the slack around it.
+		for _, p := range []image.Point{{x, 0}, {x + len(b.label) - 1, 0}, {x - 1, 1}, {x + len(b.label), 1}} {
+			if got := buttonAt(d.buttons, p.X, p.Y); got != b.button {
+				t.Errorf("tap at %v hit button %d, want %s", p, got, b.label)
+			}
+		}
+	}
+	d.restartArmed = true
+	ui.Render(d)
+	cells, w, _ = screen.GetContents()
+	var armed strings.Builder
+	for x := 0; x < w; x++ {
+		if r := cells[x].Runes; len(r) > 0 {
+			armed.WriteRune(r[0])
+		}
+	}
+	if !strings.Contains(armed.String(), "[ restart? ]") {
+		t.Errorf("armed restart should ask for confirmation, header is %q", armed.String())
+	}
 	for _, want := range []string{"RACKWATCH", "1/3 UP", "rackbox-01", " UP ", "STALE", "DOWN", "unknown host", "timeout", "61%", "90%"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("render is missing %q", want)
@@ -467,6 +496,146 @@ func TestTelegramQuietHours(t *testing.T) {
 	cfg.QuietUntil = cfg.QuietFrom
 	if cfg.quiet(at(9, 0)) {
 		t.Error("equal quiet_from and quiet_until should disable quiet hours")
+	}
+}
+
+func TestBlackout(t *testing.T) {
+	at := func(hh, mm int) time.Time { return time.Date(2026, 10, 13, hh, mm, 0, 0, time.Local) }
+	b := defaultConfig().Blackout
+	for _, c := range []struct {
+		hh, mm int
+		dark   bool
+	}{{22, 59, false}, {23, 0, true}, {3, 0, true}, {7, 59, true}, {8, 0, false}, {12, 0, false}} {
+		if got := b.active(at(c.hh, c.mm)); got != c.dark {
+			t.Errorf("default blackout at %02d:%02d = %v, want %v", c.hh, c.mm, got, c.dark)
+		}
+	}
+	b.Enabled = false
+	if b.active(at(3, 0)) {
+		t.Error("disabled blackout active at 03:00")
+	}
+
+	path := filepath.Join(t.TempDir(), "config.toml")
+	cfgText := "[blackout]\nfrom = \"01:30\"\nuntil = \"05:00\"\n\n[[hosts]]\nname = \"a\"\nmetrics_source = \"local\"\n"
+	if err := os.WriteFile(path, []byte(cfgText), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := cfg.Blackout; !b.Enabled || b.From != 90 || b.Until != 5*60 {
+		t.Errorf("loaded blackout = %+v, want enabled 01:30-05:00", b)
+	}
+}
+
+func TestDeliberateEvents(t *testing.T) {
+	for _, c := range []struct {
+		e    ui.Event
+		want bool
+	}{
+		{ui.Event{Type: ui.KeyboardEvent, ID: "q"}, true},
+		{ui.Event{Type: ui.MouseEvent, ID: "<MouseLeft>"}, true},
+		{ui.Event{Type: ui.MouseEvent, ID: "Unknown_Mouse_Button"}, false}, // motion or release
+		{ui.Event{Type: ui.ResizeEvent, ID: "<Resize>"}, false},
+	} {
+		if got := deliberate(c.e); got != c.want {
+			t.Errorf("deliberate(%s) = %v, want %v", c.e.ID, got, c.want)
+		}
+	}
+}
+
+func TestTouchTaps(t *testing.T) {
+	press := func(x, y int) ui.Event {
+		return ui.Event{Type: ui.MouseEvent, ID: "<MouseLeft>", Payload: ui.Mouse{X: x, Y: y}}
+	}
+	release := ui.Event{Type: ui.MouseEvent, ID: "Unknown_Mouse_Button", Payload: ui.Mouse{X: 3, Y: 0}}
+	var tr touchTracker
+	for i, c := range []struct {
+		e    ui.Event
+		want bool
+	}{
+		{press(3, 0), true},
+		{press(4, 0), false}, // finger held or dragged
+		{release, false},
+		{ui.Event{Type: ui.KeyboardEvent, ID: "r"}, false},
+		{press(5, 1), true},
+	} {
+		at, got := tr.tap(c.e)
+		if got != c.want {
+			t.Errorf("event %d: tap = %v, want %v", i, got, c.want)
+		}
+		if m, _ := c.e.Payload.(ui.Mouse); got && at != image.Pt(m.X, m.Y) {
+			t.Errorf("event %d: tap at %v", i, at)
+		}
+	}
+}
+
+func TestTouchDecoder(t *testing.T) {
+	// A tap as the GeeekPi 6.91" panel sends it: the touch and its position in
+	// one frame, frames with nothing but timestamps while the finger stays, then
+	// the release.
+	type ev struct {
+		typ, code uint16
+		value     int32
+	}
+	frames := [][]ev{
+		{{evAbs, 0x39, 5}, {evAbs, 0x35, 322}, {evAbs, 0x36, 857}, {evKey, btnTouch, 1}, {evAbs, absX, 322}, {evAbs, absY, 857}, {0x04, 5, 0}, {evSyn, synReport, 0}},
+		{{0x04, 5, 0}, {evSyn, synReport, 0}},
+		{{evAbs, 0x39, -1}, {evKey, btnTouch, 0}, {0x04, 5, 0}, {evSyn, synReport, 0}},
+	}
+	want := [][2]bool{{true, false}, {false, false}, {false, true}}
+	var d touchDecoder
+	for i, f := range frames {
+		var press, release bool
+		for j, e := range f {
+			p, r := d.event(e.typ, e.code, e.value)
+			if (p || r) && j != len(f)-1 {
+				t.Errorf("frame %d: event %d reported before SYN_REPORT", i, j)
+			}
+			press, release = press || p, release || r
+		}
+		if [2]bool{press, release} != want[i] {
+			t.Errorf("frame %d: press, release = %v, %v, want %v", i, press, release, want[i])
+		}
+	}
+	if d.x != 322 || d.y != 857 {
+		t.Errorf("position = %d, %d, want 322, 857", d.x, d.y)
+	}
+}
+
+func TestTouchMapper(t *testing.T) {
+	m := touchMapper{xRange: axisRange{0, 16383}, yRange: axisRange{0, 9599}}
+	for _, c := range []struct {
+		cfg          touchConfig
+		x, y         int32
+		wantX, wantY int
+	}{
+		{touchConfig{}, 0, 0, 0, 0},
+		{touchConfig{}, 16383, 9599, 177, 16}, // the far edge stays on screen
+		{touchConfig{}, 8192, 4800, 89, 8},
+		{touchConfig{}, -50, 20000, 0, 16}, // outside the range
+		{touchConfig{InvertX: true}, 0, 0, 177, 0},
+		{touchConfig{InvertY: true}, 0, 0, 0, 16},
+		{touchConfig{SwapXY: true}, 16383, 0, 0, 16},
+	} {
+		m.cfg = c.cfg
+		if x, y := m.cell(c.x, c.y, 178, 17); x != c.wantX || y != c.wantY {
+			t.Errorf("%+v: cell(%d, %d) = %d, %d, want %d, %d", c.cfg, c.x, c.y, x, y, c.wantX, c.wantY)
+		}
+	}
+}
+
+func TestTouchConfig(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Hosts = []hostConfig{{Name: "x", MetricsSource: sourceLocal}}
+	cfg.Touch.Enabled = true
+	if err := cfg.validate(); err == nil {
+		t.Error("touch enabled without a device accepted, want error")
+	}
+	cfg.Touch.Device = "/dev/input/event4"
+	if err := cfg.validate(); err != nil {
+		t.Errorf("touch with a device: %v", err)
 	}
 }
 
