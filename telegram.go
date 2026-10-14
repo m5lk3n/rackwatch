@@ -103,11 +103,11 @@ func alertText(h *hostState, st hostStatus, now, since time.Time) string {
 	}
 	switch st {
 	case statusDown:
-		return fmt.Sprintf("🔴 %s is down%s", h.cfg.Name, reason)
+		return fmt.Sprintf("⛔ %s is down%s", h.cfg.Name, reason)
 	case statusStale:
-		return fmt.Sprintf("🔴 %s is not reachable, no data since %s%s", h.cfg.Name, since.Format("15:04"), reason)
+		return fmt.Sprintf("⚠️ %s is not reachable, no data since %s%s", h.cfg.Name, since.Format("15:04"), reason)
 	}
-	return fmt.Sprintf("🟢 %s is back up after %s", h.cfg.Name, now.Sub(since).Round(time.Minute))
+	return fmt.Sprintf("✅ %s is back up after %s", h.cfg.Name, now.Sub(since).Round(time.Minute))
 }
 
 // quiet reports whether t, in the local time of this machine, falls within the

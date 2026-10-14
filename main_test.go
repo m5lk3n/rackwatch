@@ -790,10 +790,10 @@ func TestTelegramSendMessage(t *testing.T) {
 	telegramAPI = srv.URL
 
 	cfg := telegramConfig{BotToken: "123:secret", ChatID: "-42"}
-	if err := cfg.sendMessage(context.Background(), "🔴 rack-02 is down"); err != nil {
+	if err := cfg.sendMessage(context.Background(), "⛔ rack-02 is down"); err != nil {
 		t.Fatal(err)
 	}
-	if path != "/bot123:secret/sendMessage" || chat != "-42" || text != "🔴 rack-02 is down" {
+	if path != "/bot123:secret/sendMessage" || chat != "-42" || text != "⛔ rack-02 is down" {
 		t.Errorf("request = %s chat_id=%s text=%q", path, chat, text)
 	}
 	cfg.ChatID = "bad"

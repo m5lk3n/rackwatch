@@ -40,7 +40,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           ARCH="${GOARCH}${GOARM:+v$GOARM}"
-          make build VERSION="$VERSION" BUILT_BY="GitHub Actions ($RUNNER_NAME, run $GITHUB_RUN_ID)"
+          make build VERSION="$VERSION" BUILT_BY="$RUNNER_NAME, run $GITHUB_RUN_ID"
           DIST="rackwatch_${VERSION}_linux_${ARCH}"
           mkdir "$DIST"
           cp rackwatch README.md LICENSE config.toml.example "$DIST"/

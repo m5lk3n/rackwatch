@@ -5,7 +5,7 @@
   <img src="images/logo.png" alt="rackwatch logo" width="15%"/>
 </p>
 <p align="center">
-  For a 1424 × 280 screen in your 10-inch rack: A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history. Comes with optional touch support, Telegram integration, and more.
+  For a 1424 × 280 screen in a 10-inch rack: A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history. Comes with optional touch support, Telegram integration, and more.
 </p>
 <p align="center">
   <img alt="language" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white"/>
@@ -16,15 +16,25 @@
 </p>
 <!-- markdownlint-enable MD033 -->
 
-## Installation / Update
+## Quickstart
 
-Feel free to review the [install.sh](./install.sh) script.
+- Review the [install.sh](./install.sh) script.
 
-Run the same command for both, installation and update:
+  Here's what it sets up:
 
-```sh
-curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
-```
+  <!-- markdownlint-disable MD033 -->
+  <p align="center">
+    <img src="images/setup.png" alt="rackwatch setup" width="50%"/>
+  </p>
+  <!-- markdownlint-enable MD033 -->
+
+- **Run the same command for both, installation and update**:
+
+  ```sh
+  curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
+  ```
+
+- [Configure](#configuration).
 
 ## Constraints
 
@@ -32,19 +42,9 @@ curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | 
 - The panel hides the console's top row, 5 columns on the left and 4 on the right, so the config sets `margin_top = 1`, `margin_left = 5` and `margin_right = 4`.
 - The screen is wide and short, so each host gets its own column. Sparklines grow to fill the height that's left.
 
-## Building
+## Starting
 
-```sh
-make build
-```
-
-## Testing
-
-```sh
-make test
-```
-
-## Running
+Manual start if not installed via [install.sh](./install.sh):
 
 ```sh
 cp config.toml.example config.toml      # then edit the hosts
@@ -52,6 +52,8 @@ cp config.toml.example config.toml      # then edit the hosts
 ./rackwatch -config path/to/config.toml
 ./rackwatch version                     # prints the version and who built it
 ```
+
+## Running
 
 | Key | Action |
 | --- | --- |
@@ -172,8 +174,8 @@ If that prints a line, the TUI can read the host.
 With `[telegram]` enabled, rackwatch messages a chat when a host goes down and again when it recovers:
 
 ```text
-🔴 rackbox-02 is not reachable, no data since 14:02: connection refused
-🟢 rackbox-02 is back up after 25m
+⚠️ rackbox-02 is not reachable, no data since 14:02: connection refused
+✅ rackbox-02 is back up after 25m
 ```
 
 - **Down** means the panel shows STALE or DOWN. One failed fetch isn't enough: a host that was up is reported once its data is older than `stale_after`. A host that has never answered since rackwatch started is reported right away.
@@ -192,7 +194,43 @@ To set it up:
 
    Group IDs are negative, e.g. `-1001234567890`.
 
-## Files
+## Limitations
+
+- Remote URLs only work with node_exporter's format.
+- The `local` source only works on Linux.
+- Disk usage covers only the `/` mount.
+- Network traffic adds up all interfaces except loopback and virtual ones like `veth*`, `docker*` and `br-*`.
+
+---
+
+## Development
+
+### Prerequisites
+
+- `make`
+- `go 1.27+`
+- optional: [todo.txt-cli](https://github.com/todotxt/todo.txt-cli) with `alias t='todo.sh -d ./todo.cfg'`
+
+### Build
+
+```sh
+make build
+```
+
+### Test
+
+```sh
+make test
+```
+
+### Release
+
+```sh
+NEW_VERSION=v0.2.1 # bump <major>.<minor>.<patch> accordingly
+git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
+```
+
+### Files
 
 | File | Contents |
 | --- | --- |
@@ -205,26 +243,7 @@ To set it up:
 | [theme.go](theme.go) | Theme definitions. To add one, write another function and add it to the `themes` map. Styles use the 16 color slots, with only the first 8 as backgrounds, or the theme breaks on the Linux console; a test checks this. To use custom colors, set `palette` with the RGB value of each slot, as the Prot16 themes do. For another Prot16 dark variant, or any palette laid out the same way (as the default theme is), pass its 16 colors to `prot16Dark`. |
 | [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, rendering, and Telegram alerts |
 
-## Limitations
-
-- Remote URLs only work with node_exporter's format.
-- The `local` source only works on Linux.
-- Disk usage covers only the `/` mount.
-- Network traffic adds up all interfaces except loopback and virtual ones like `veth*`, `docker*` and `br-*`.
-
-## Prerequisites
-
-### Development
-
-- `make`
-- `go 1.27+`
-- optional: [todo.txt-cli](https://github.com/todotxt/todo.txt-cli) with `alias t='todo.sh -d ./todo.cfg'`
-
-Create a release with
-
-```sh
-git tag v0.1.0 && git push origin v0.1.0
-```
+---
 
 ## Sources
 
@@ -235,7 +254,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 ## Disclaimer
 
-- I'm neither responsible for any damage to your devices nor for external links.
+- I'm not responsible for any damage to your devices or for external links.
 - I used AI (Claude Code, Copilot and ChatGPT) to realize this project. The [logo](images/logo.png) is custom-generated art by Claude Code.
 
 ---
