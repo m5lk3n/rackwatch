@@ -24,7 +24,7 @@
 
   <!-- markdownlint-disable MD033 -->
   <p align="center">
-    <img src="images/setup.png" alt="rackwatch setup" width="50%"/>
+    <img src="images/setup.png" alt="rackwatch setup" width="75%"/>
   </p>
   <!-- markdownlint-enable MD033 -->
 
@@ -35,6 +35,15 @@
   ```
 
 - [Configure](#configuration).
+
+## TL;DR
+
+rackwatch is a single Go binary that runs a full-screen terminal dashboard on the small display of a 10-inch rack. It shows one column per host, up to 10 hosts, with CPU, RAM, disk, temperature and network. Each metric gets a sparkline of recent history, and each host shows as UP, STALE or DOWN.
+
+- **Installation**: [install.sh](./install.sh) downloads the latest release and checks its checksum. It installs the binary to `/opt/rackwatch/` and sets up a systemd service that runs as the `rackwatch` user on TTY1, replacing the login prompt there. Run the same command again to update.
+- **Config**: a single TOML file, `/etc/rackwatch/config.toml`, created from [config.toml.example](config.toml.example) and never overwritten by updates. List your hosts there, plus optional settings for the theme, screensaver, night blackout, touchscreen and Telegram alerts. See [Configuration](#configuration).
+- **Dashboard**: refreshes every 30 seconds by default and keeps its history in memory. It never blocks on a slow host. Values over a threshold are highlighted. Press `r` or tap `[ refresh ]` to refresh now, `q` to quit. See [Running](#running).
+- **node_exporter**: the machine running rackwatch can read its own metrics (`metrics_source = "local"`). Every other host needs [node_exporter](https://github.com/prometheus/node_exporter) on port 9100. Install it from your distribution's package manager. It's lightweight and doesn't need a Prometheus server. See [Setting up remote hosts](#setting-up-remote-hosts).
 
 ## Constraints
 

@@ -1,2 +1,2 @@
 update README with latest screenshot
-simplify the README, provide a TLDR section
+add an actual image?
