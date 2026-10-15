@@ -1,2 +1,1 @@
-update README with latest screenshot
-add an actual image?
+add a rack image?
