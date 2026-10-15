@@ -60,8 +60,8 @@ func defaultDark() *theme {
 }
 
 // archaicDark is the dark variant of Protesilaos Stavrou's Archaic scheme
-// (https://protesilaos.com/archaic), earthy colors inspired by ancient wall
-// paintings.
+// (https://github.com/m5lk3n/rackwatch#themes), low contrast with earthy colors
+// inspired by ancient wall paintings.
 func archaicDark() *theme {
 	return prot16Dark([16]uint32{
 		0x2e2926, 0xab5637, 0x688a38, 0xa97906, 0x4884ad, 0xa25763, 0x368876, 0xeee1c8,
@@ -70,7 +70,8 @@ func archaicDark() *theme {
 }
 
 // fortunaDark is the dark variant of Protesilaos Stavrou's Fortuna scheme
-// (https://protesilaos.com/fortuna), high contrast with bright, playful colors.
+// (https://github.com/m5lk3n/rackwatch#themes), high contrast with bright,
+// playful colors.
 func fortunaDark() *theme {
 	return prot16Dark([16]uint32{
 		0x453731, 0xda5447, 0x78ad28, 0xdb9d0b, 0x3894cd, 0xdc6788, 0x16adac, 0xe2e1df,
@@ -79,7 +80,8 @@ func fortunaDark() *theme {
 }
 
 // gaiaDark is the dark variant of Protesilaos Stavrou's Gaia scheme
-// (https://protesilaos.com/gaia), low-to-medium contrast with an earthy feel.
+// (https://github.com/m5lk3n/rackwatch#themes), low-to-medium contrast with an
+// earthy feel.
 func gaiaDark() *theme {
 	return prot16Dark([16]uint32{
 		0x2d2e2f, 0xa67336, 0x7c8e2d, 0xad9f4d, 0x6c9cba, 0xbd9198, 0x5d9d7c, 0xdbddcf,
@@ -88,8 +90,8 @@ func gaiaDark() *theme {
 }
 
 // hinterlandDark is the dark variant of Protesilaos Stavrou's Hinterland scheme
-// (https://protesilaos.com/hinterland), high contrast, inspired by mountain
-// ranges and rural regions in early spring.
+// (https://github.com/m5lk3n/rackwatch#themes), high contrast, inspired by
+// mountain ranges and rural regions in early spring.
 func hinterlandDark() *theme {
 	return prot16Dark([16]uint32{
 		0x12171b, 0x983f16, 0x3d814c, 0xb09020, 0x217ab3, 0xad5c5b, 0x01917b, 0xe9e8ec,
@@ -98,9 +100,9 @@ func hinterlandDark() *theme {
 }
 
 // noirDark is the dark variant of Protesilaos Stavrou's Noir scheme
-// (https://protesilaos.com/noir), low contrast, inspired by nights in the
-// wilderness. Unlike the other schemes, its slots 7 and 15 are near-black, so
-// the styles that would use them take other slots.
+// (https://github.com/m5lk3n/rackwatch#themes), low contrast, inspired by
+// nights in the wilderness. Unlike the other schemes, its slots 7 and 15 are
+// near-black, so the styles that would use them take other slots.
 func noirDark() *theme {
 	th := prot16Dark([16]uint32{
 		0x081614, 0xa2744a, 0x358664, 0x76924c, 0x4a78a6, 0xa28d7c, 0x358092, 0x292e28,

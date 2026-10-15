@@ -18,23 +18,23 @@
 
 ## Quickstart
 
-- Review the [install.sh](./install.sh) script.
+1. Review the [install.sh](./install.sh) script.
 
-  Here's what it sets up:
+   Here's what it sets up:
 
-  <!-- markdownlint-disable MD033 -->
-  <p align="center">
-    <img src="images/setup.png" alt="rackwatch setup" width="75%"/>
-  </p>
-  <!-- markdownlint-enable MD033 -->
+   <!-- markdownlint-disable MD033 -->
+   <p align="center">
+     <img src="images/setup.png" alt="rackwatch setup" width="75%"/>
+   </p>
+   <!-- markdownlint-enable MD033 -->
 
-- **Run the same command for both, installation and update**:
+2. **Run the same command for both, installation and update**:
 
-  ```sh
-  curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
-  ```
+   ```sh
+   curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
+   ```
 
-- [Configure](#configuration).
+3. [Configure](#configuration).
 
 ## TL;DR
 
@@ -69,7 +69,7 @@ cp config.toml.example config.toml      # then edit the hosts
 | `r` | Refresh now |
 | `q`, `Esc`, `Ctrl-C` | Quit |
 
-On a touchscreen, or with a mouse, tap `[ refresh ]` in the header to refresh now. Tap `[ restart ]` and then `[ restart? ]` within 5 seconds to restart rackwatch with the same arguments; the second tap stops a stray touch from restarting it. A tap that ends the screensaver or wakes the screen during the black-out only does that. On the Linux text console, taps only reach rackwatch with [`touch`](#touchscreen) set up; in a terminal window they work as they are.
+On a touchscreen, or with a mouse, tap `[ refresh ]` in the header to refresh now. Tap `[ restart ]` and then `[ restart? ]` within 5 seconds to restart rackwatch with the same arguments; the second tap stops a stray touch from restarting it. A restart reads the config file again, so it applies changes to `config.toml` without leaving the dashboard; if the edited config is invalid, rackwatch prints the error and exits. A tap that ends the screensaver or wakes the screen during the black-out only does that. On the Linux text console, taps only reach rackwatch with [`touch`](#touchscreen) set up; in a terminal window they work as they are.
 
 CPU and NET show `--` until a host's second successful fetch, normally one `refresh_seconds` after startup. Both are rates, so they need two readings to compare. RAM, disk and temperature show up right away.
 
@@ -127,7 +127,7 @@ In a terminal window, taps on a touchscreen reach rackwatch like mouse clicks, w
    sudo usermod -aG input $USER
    ```
 
-   For the service, add the `rackwatch` user instead, see [SERVICE.md](SERVICE.md).
+   For the service, add the `rackwatch` user instead.
 3. Set it in the config:
 
    ```toml
@@ -256,15 +256,19 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 
 ## Sources
 
-- The default theme takes its colors from VS Code's [Dark 2026 theme](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/2026-dark.json).
-- The other dashboard themes are dark variants from [Prot16 general resources](https://github.com/protesilaos/prot16).
-- The screensaver (digital rain) is heavily inspired from The Matrix movie.
+- The default theme uses selected colors from VS Code's [Dark 2026 theme](https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/2026-dark.json), from the MIT-licensed [Visual Studio Code project](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+- The `archaic`, `fortuna`, `gaia`, `hinterland` and `noir` palettes adapt dark color schemes from [Prot16](https://github.com/protesilaos/prot16).
+- The screensaver is an independent implementation inspired by the digital-rain visual effect associated with The Matrix.
 - The lttl.dev logo in the footer is my own.
 
 ## Disclaimer
 
-- I'm not responsible for any damage to your devices or for external links.
-- I used AI (Claude Code, Copilot and ChatGPT) to realize this project. The [logo](images/logo.png) is custom-generated art by Claude Code.
+- rackwatch's own code is distributed under the MIT License in [LICENSE](LICENSE). Third-party works retain their respective licenses; this project's license does not relicense them.
+- Prot16 is copyright (c) 2017 Protesilaos Stavrou and is licensed under GPL-3.0-or-later. This project adapts its named palettes as RGB values and does not include Prot16 source files. Whether those palette adaptations are covered by GPL and how that interacts with rackwatch's MIT license has not been determined. Treat this as an unresolved license-compatibility question before redistributing the Prot16-based themes; replacing them with independently developed palettes or obtaining qualified licensing advice would resolve the uncertainty.
+- VS Code is a Microsoft trademark. The Matrix is a third-party title and mark. These names are used only to identify sources or describe visual inspiration; rackwatch is not affiliated with or endorsed by Microsoft or the rights holders of The Matrix. All third-party names and marks belong to their respective owners.
+- Go module dependencies have their own licenses (including MIT, Apache-2.0 and BSD-style licenses). The release archives currently include rackwatch's [LICENSE](LICENSE), but do not bundle the dependency license texts; consult [go.mod](go.mod) and the upstream module license files before redistributing those archives.
+- The [logo](images/logo.png) is custom-generated art made with Claude Code. AI tools (Claude Code, Copilot and ChatGPT) were used in developing the project.
+- Use rackwatch at your own risk. It is provided without warranty; take care when installing it on hardware or running the installer with elevated privileges.
 
 ---
 
