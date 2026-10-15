@@ -42,6 +42,9 @@ To uninstall, run [uninstall.sh](./uninstall.sh). It keeps `/etc/rackwatch/` and
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh | sudo sh
+```
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh | sudo sh -s -- --purge
 ```
 
