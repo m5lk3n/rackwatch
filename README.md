@@ -28,13 +28,22 @@
    </p>
    <!-- markdownlint-enable MD033 -->
 
-2. **Run the same command for both, installation and update**:
+2. **Run the same command for both installation and update**:
 
    ```sh
    curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/install.sh | sudo sh
    ```
 
 3. [Configure](#configuration).
+
+## Uninstallation
+
+To uninstall, run [uninstall.sh](./uninstall.sh). It keeps `/etc/rackwatch/` and the `rackwatch` user unless you add `--purge`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh | sudo sh -s -- --purge
+```
 
 ## TL;DR
 
@@ -69,7 +78,7 @@ cp config.toml.example config.toml      # then edit the hosts
 | `r` | Refresh now |
 | `q`, `Esc`, `Ctrl-C` | Quit |
 
-On a touchscreen, or with a mouse, tap `[ refresh ]` in the header to refresh now. Tap `[ restart ]` and then `[ restart? ]` within 5 seconds to restart rackwatch with the same arguments; the second tap stops a stray touch from restarting it. A restart reads the config file again, so it applies changes to `config.toml` without leaving the dashboard; if the edited config is invalid, rackwatch prints the error and exits. A tap that ends the screensaver or wakes the screen during the black-out only does that. On the Linux text console, taps only reach rackwatch with [`touch`](#touchscreen) set up; in a terminal window they work as they are.
+On a touchscreen, or with a mouse, tap `[ refresh ]` in the header to refresh now. Tap `[ restart ]` and then `[ restart? ]` within 5 seconds to restart rackwatch with the same arguments; the second tap stops a stray touch from restarting it. A restart reads the config file again, so it applies changes to `config.toml` without leaving the dashboard; if the edited config is invalid, rackwatch prints the error and exits. A tap that ends the screensaver or wakes the screen during the blackout only does that. On the Linux text console, taps only reach rackwatch with [`touch`](#touchscreen) set up; in a terminal window they work as they are.
 
 CPU and NET show `--` until a host's second successful fetch, normally one `refresh_seconds` after startup. Both are rates, so they need two readings to compare. RAM, disk and temperature show up right away.
 
@@ -83,7 +92,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | `dashboard.stale_after` | How old data can get before a host shows as STALE, e.g. `"300s"` (default `"300s"`) |
 | `dashboard.theme` | `"default"`, `"archaic"`, `"fortuna"`, `"gaia"`, `"hinterland"` or `"noir"` (default `"default"`) |
 | `dashboard.show_sparklines` | Show the history graphs (default `true`) |
-| `dashboard.spark_glyphs` | `"eighths"` draws bars in eighth-row steps (`▁▂▃…█`). `"halves"` uses only `▄` and `█`. `"line"` draws just the top of each bar with `_`, `-` and `¯`, which every Linux text console font has; the eighth blocks show as diamonds there. `"auto"` picks line when running on a Linux virtual console (`/dev/ttyN`) or with `TERM=linux` (default `"auto"`) |
+| `dashboard.spark_glyphs` | `"eighths"` draws bars in eighth-row steps (`▁▂▃…█`). `"halves"` uses only `▄` and `█`. `"line"` draws just the top of each bar with `_`, `-` and `¯`, which every Linux text console font has; the eighth blocks show as diamonds there. `"auto"` picks `"line"` when running on a Linux virtual console (`/dev/ttyN`) or with `TERM=linux` (default `"auto"`) |
 | `dashboard.condensed` | Show each metric on a single row, without the extra rows that normally hold taller sparklines. Panels are only as tall as their content (7 rows) instead of filling the screen (default `false`) |
 | `dashboard.margin_top`, `margin_bottom`, `margin_left`, `margin_right` | Rows and columns to leave blank at each edge of the terminal, for parts the screen hides (default `0`) |
 | `screensaver.enabled` | Show the [digital rain](images/screensaver.png) from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
@@ -98,8 +107,8 @@ See [config.toml.example](config.toml.example) for a full example.
 | `touch.enabled` | Read a touchscreen directly on the Linux text console, see [Touchscreen](#touchscreen) (default `false`) |
 | `touch.device` | The touchscreen's input device, e.g. `"/dev/input/by-id/usb-…-event-if00"` |
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
-| `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C. |
-| `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured. |
+| `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C |
+| `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
 | `hosts[].enabled` | Set to `false` to hide a host without deleting its entry. Disabled entries aren't validated and don't count toward the limit (default `true`) |
 
@@ -176,7 +185,7 @@ If that prints a line, the TUI can read the host.
 
   A short version of the error (e.g. `timeout`, `connection refused`, `unknown host`) appears on the bottom edge of the panel.
 - **Wrong responses are errors too.** A non-200 response, or a page that doesn't look like node_exporter output, counts as a failure rather than showing zeros. If a counter goes backwards (a reboot or exporter restart), that one reading's CPU and network rates are skipped instead of showing a nonsense value.
-- **Thresholds are highlighted.** Values at or above `[thresholds]` are highlighted, and so are the individual sparkline bars that crossed them. The highlight is each theme's orange.
+- **Thresholds are highlighted.** Values at or above `[thresholds]` are highlighted, and so are the individual sparkline bars that crossed them. The highlight is each theme's warning color.
 
 ## Telegram alerts
 
