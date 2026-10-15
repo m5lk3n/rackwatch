@@ -171,11 +171,10 @@ func (th *theme) forTerminal(console bool) *theme {
 }
 
 func (th *theme) rgb(c ui.Color) ui.Color {
-	i := int(c - tcell.ColorBlack)
-	if i < 0 || i >= len(th.palette) {
+	if c < tcell.ColorBlack || c-tcell.ColorBlack >= ui.Color(len(th.palette)) {
 		return c
 	}
-	p := th.palette[i]
+	p := th.palette[c-tcell.ColorBlack]
 	return ui.NewRGBColor(int32(p>>16&0xff), int32(p>>8&0xff), int32(p&0xff))
 }
 
@@ -190,7 +189,7 @@ func (th *theme) setConsolePalette(w io.Writer) (restore func()) {
 		return func() {}
 	}
 	for i, p := range th.palette {
-		fmt.Fprintf(w, "\x1b]P%x%06x", i, p)
+		_, _ = fmt.Fprintf(w, "\x1b]P%x%06x", i, p)
 	}
-	return func() { fmt.Fprint(w, "\x1b]R") }
+	return func() { _, _ = fmt.Fprint(w, "\x1b]R") }
 }

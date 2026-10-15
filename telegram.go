@@ -133,7 +133,7 @@ func (t telegramConfig) sendMessage(ctx context.Context, text string) error {
 		}
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var body struct {
 		OK          bool   `json:"ok"`
 		Description string `json:"description"`

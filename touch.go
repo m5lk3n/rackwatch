@@ -74,5 +74,5 @@ func restartSelf() error {
 	if err != nil {
 		return err
 	}
-	return syscall.Exec(exe, os.Args, os.Environ())
+	return syscall.Exec(exe, os.Args, os.Environ()) // #nosec G204 G702 -- re-executes this binary with its own arguments
 }

@@ -47,6 +47,7 @@ type drop struct {
 }
 
 func newMatrixRain(console bool) *matrixRain {
+	// #nosec G404 -- the rain animation needs no cryptographic randomness
 	m := &matrixRain{Block: *ui.NewBlock(), th: &theme{palette: &matrixPalette}, glyphs: matrixGlyphs, rng: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))}
 	m.Border = false
 	if console {

@@ -85,9 +85,10 @@ func (d *touchDecoder) event(typ, code uint16, value int32) (press, release bool
 		}
 	case evKey:
 		if code == btnTouch {
-			if value == 1 {
+			switch value {
+			case 1:
 				d.pressed = true
-			} else if value == 0 {
+			case 0:
 				d.released = true
 			}
 		}
@@ -122,7 +123,7 @@ func readTouches(cfg touchConfig, out chan<- ui.Event) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	m := touchMapper{cfg: cfg}
 	if m.xRange, err = absRange(f, absX); err != nil {
 		return err
@@ -143,7 +144,7 @@ func readTouches(cfg touchConfig, out chan<- ui.Event) error {
 		}
 		typ := binary.NativeEndian.Uint16(buf[tv:])
 		code := binary.NativeEndian.Uint16(buf[tv+2:])
-		value := int32(binary.NativeEndian.Uint32(buf[tv+4:]))
+		value := int32(binary.NativeEndian.Uint32(buf[tv+4:])) // #nosec G115 -- the kernel's __s32, reinterpreted bit for bit
 		press, release := d.event(typ, code, value)
 		if !press && !release {
 			continue
@@ -164,6 +165,7 @@ func readTouches(cfg touchConfig, out chan<- ui.Event) error {
 func absRange(f *os.File, axis uint) (axisRange, error) {
 	var info struct{ value, min, max, fuzz, flat, resolution int32 }
 	req := 2<<30 | uintptr(unsafe.Sizeof(info))<<16 | 'E'<<8 | uintptr(0x40+axis)
+	// #nosec G103 -- EVIOCGABS fills info in place; it has no wrapper in x/sys/unix
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, f.Fd(), req, uintptr(unsafe.Pointer(&info))); errno != 0 {
 		return axisRange{}, fmt.Errorf("%s: reading the range of axis %d: %w (is it a touchscreen?)", f.Name(), axis, errno)
 	}

@@ -123,7 +123,7 @@ func TestUnreachableHostKeepsLastSnapshot(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		w.Write([]byte(nodeExporterSample))
+		_, _ = w.Write([]byte(nodeExporterSample))
 	}))
 	defer srv.Close()
 
@@ -218,7 +218,7 @@ name = "on"
 metrics_source = "local"
 enabled = true
 `
-	if err := os.WriteFile(path, []byte(toml), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(toml), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := loadConfig(path)
@@ -229,7 +229,7 @@ enabled = true
 		t.Errorf("hosts = %+v, want only on", cfg.Hosts)
 	}
 
-	if err := os.WriteFile(path, []byte("[[hosts]]\nname = \"x\"\nmetrics_source = \"local\"\nenabled = false\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("[[hosts]]\nname = \"x\"\nmetrics_source = \"local\"\nenabled = false\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := loadConfig(path); err == nil {
@@ -643,7 +643,7 @@ func TestTelegramConfig(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	write := func(telegram string) {
 		t.Helper()
-		if err := os.WriteFile(path, []byte(telegram+"\n[[hosts]]\nname = \"a\"\nmetrics_source = \"local\"\n"), 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(telegram+"\n[[hosts]]\nname = \"a\"\nmetrics_source = \"local\"\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -780,10 +780,10 @@ func TestTelegramSendMessage(t *testing.T) {
 		path, chat, text = r.URL.Path, r.FormValue("chat_id"), r.FormValue("text")
 		if chat == "bad" {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`))
+			_, _ = w.Write([]byte(`{"ok":false,"error_code":400,"description":"Bad Request: chat not found"}`))
 			return
 		}
-		w.Write([]byte(`{"ok":true,"result":{}}`))
+		_, _ = w.Write([]byte(`{"ok":true,"result":{}}`))
 	}))
 	defer srv.Close()
 	defer func(api string) { telegramAPI = api }(telegramAPI)

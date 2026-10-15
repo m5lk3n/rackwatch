@@ -122,7 +122,7 @@ func readProcStat(s *rawSample) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	if !sc.Scan() {
 		return errors.New("/proc/stat: empty")
@@ -150,7 +150,7 @@ func readMeminfo(s *rawSample) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
@@ -175,7 +175,7 @@ func readLocalTemp() float64 {
 	}
 	hottest := math.NaN()
 	for _, p := range paths {
-		b, err := os.ReadFile(p)
+		b, err := os.ReadFile(p) // #nosec G304 -- p comes from a fixed sysfs glob
 		if err != nil {
 			continue
 		}
@@ -195,7 +195,7 @@ func readNetDev() float64 {
 	if err != nil {
 		return math.NaN()
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	total, found := 0.0, false
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -233,7 +233,7 @@ func collectNodeExporter(ctx context.Context, client *http.Client, url string) (
 	if err != nil {
 		return rawSample{}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return rawSample{}, fmt.Errorf("HTTP %s", resp.Status)
 	}
