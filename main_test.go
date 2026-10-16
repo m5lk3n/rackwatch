@@ -832,3 +832,36 @@ func TestClock(t *testing.T) {
 		t.Errorf("previous day: %q, want Oct 15 14:30", got)
 	}
 }
+
+// TestDisplayOn checks that only a connected display whose output is on counts.
+func TestDisplayOn(t *testing.T) {
+	dir := t.TempDir()
+	connector := func(name, status, dpms string) {
+		d := filepath.Join(dir, name)
+		if err := os.Mkdir(d, 0o750); err != nil {
+			t.Fatal(err)
+		}
+		for file, text := range map[string]string{"status": status + "\n", "dpms": dpms + "\n"} {
+			if err := os.WriteFile(filepath.Join(d, file), []byte(text), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	defer func(old string) { drmDPMS = old }(drmDPMS)
+	drmDPMS = filepath.Join(dir, "*", "dpms")
+
+	if displayOn() {
+		t.Error("displayOn without connectors = true, want false")
+	}
+	connector("card0-HDMI-A-1", "disconnected", "On")
+	connector("card0-DP-2", "connected", "Off")
+	if displayOn() {
+		t.Error("displayOn with the connected display off = true, want false")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "card0-DP-2", "dpms"), []byte("On\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !displayOn() {
+		t.Error("displayOn with the connected display on = false, want true")
+	}
+}

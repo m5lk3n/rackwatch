@@ -107,6 +107,12 @@ main() {
 }
 
 write_unit() {
+	# The input group lets the service read a touchscreen. A unit naming a
+	# group that doesn't exist fails to start, so only add it where it does.
+	groups=""
+	if getent group input >/dev/null; then
+		groups="SupplementaryGroups=input"
+	fi
 	cat >"$UNIT" <<EOF
 [Unit]
 Description=Rackwatch terminal dashboard
@@ -119,6 +125,7 @@ After=getty@tty1.service
 [Service]
 Type=simple
 User=$SERVICE_USER
+$groups
 ExecStart=$BIN_DIR/rackwatch -config $CONFIG
 Restart=always
 RestartSec=2

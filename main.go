@@ -285,6 +285,14 @@ func run(cfg config) error {
 			render()
 		case <-blackoutTicks:
 			render()
+			// If the kernel turned the display back on, switch it off again.
+			// Poke first: after a hotplug the console still counts itself as
+			// blanked and would ignore another force.
+			if dark && console && displayOn() {
+				blackoutLog.Print("screen came back on by itself, switching it off again")
+				blankConsole(false)
+				blankConsole(true)
+			}
 		case <-restartEnd:
 			disarm()
 			render()

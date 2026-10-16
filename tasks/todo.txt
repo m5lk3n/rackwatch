@@ -1,1 +1,2 @@
 add a rack image?
+add a CLAUDE.md, mentioning e.g. to lint Markdown after each update

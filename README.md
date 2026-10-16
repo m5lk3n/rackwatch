@@ -102,7 +102,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | `screensaver.enabled` | Show the [digital rain](images/screensaver.png) from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
 | `screensaver.interval` | How often the screensaver starts, e.g. `"10m"` (default `"10m"`) |
 | `screensaver.duration` | How long it runs, e.g. `"10s"`. Must be shorter than `interval` (default `"10s"`) |
-| `blackout.enabled` | Keep the screen black at night (default `true`). Any key or touch shows the dashboard for a minute (mouse movement doesn't count); polling and Telegram alerts carry on. The screensaver doesn't run while the screen is black. On the Linux console the display is also switched off with `setterm --blank force`, which can turn off the backlight too; this needs `setterm` (from util-linux) and the console to be rackwatch's controlling terminal, as when it runs as a service on a tty. When stderr isn't a terminal, as with the service, rackwatch logs when the screen goes off and on and what woke it, so `journalctl -u rackwatch` shows why it came back |
+| `blackout.enabled` | Keep the screen black at night (default `true`). Any key or touch shows the dashboard for a minute (mouse movement doesn't count); polling and Telegram alerts carry on. The screensaver doesn't run while the screen is black. On the Linux console the display is also switched off with `setterm --blank force`, which can turn off the backlight too; this needs `setterm` (from util-linux) and the console to be rackwatch's controlling terminal, as when it runs as a service on a tty. Some screens keep their backlight on for a while without a signal, and every few minutes briefly drop their connection, which makes the kernel turn the display back on. rackwatch switches it off again within 10 seconds, logging `screen came back on by itself`, and after a few such attempts the screen's firmware may give up and stay dark with the backlight off. On the GeeekPi screen that took 5 attempts, about 13 minutes. When stderr isn't a terminal, as with the service, rackwatch logs when the screen goes off and on and what woke it, so `journalctl -u rackwatch` shows why it came back |
 | `blackout.from`, `until` | When the screen is black, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
 | `telegram.enabled` | Send a Telegram message when a host goes down or recovers, see [Telegram alerts](#telegram-alerts) (default `false`) |
 | `telegram.bot_token` | The bot's token from [@BotFather](https://t.me/BotFather), e.g. `"123456789:ABC-DEF..."` |
@@ -134,13 +134,12 @@ On the Linux console, rackwatch loads the theme's colors into the console's 16 c
 In a terminal window, taps on a touchscreen reach rackwatch like mouse clicks, with nothing to set up. On the Linux text console nothing passes them on, except gpm, which treats a touchscreen as a mouse and misses where the finger is. There, rackwatch reads the touchscreen itself:
 
 1. Find the device. `ls -l /dev/input/by-id/` lists stable names, which survive a reboot or replugging, unlike `/dev/input/eventN`. A panel often shows up more than once, e.g. as `…-event-if00` and `…-if02-event-mouse`. Run `sudo evtest`, pick each `event` device in turn and tap the screen: the right one reports `ABS_X`, `ABS_Y` and `BTN_TOUCH`. In `/proc/bus/input/devices` it's usually the one with `PROP=2`.
-2. Let the user running rackwatch read it. Input devices belong to the `input` group, so without it rackwatch can't open the device; evtest only worked because of `sudo`. Add yourself, then **log out and back in**, since group changes only apply to new logins:
+2. Let the user running rackwatch read it. Input devices belong to the `input` group, so without it rackwatch can't open the device; evtest only worked because of `sudo`. The service installed by [install.sh](./install.sh) already runs with the `input` group, so skip this step for it. When running rackwatch yourself, add yourself to the group, then **log out and back in**, since group changes only apply to new logins:
 
    ```sh
    sudo usermod -aG input $USER
    ```
 
-   For the service, add the `rackwatch` user instead.
 3. Set it in the config:
 
    ```toml
@@ -250,7 +249,7 @@ make test
 ### Release
 
 ```sh
-NEW_VERSION=v0.2.1 # bump <major>.<minor>.<patch> accordingly
+NEW_VERSION=v0.2.3 # bump <major>.<minor>.<patch> accordingly
 git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 ```
 
