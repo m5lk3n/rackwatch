@@ -30,6 +30,7 @@ type config struct {
 type dashboardConfig struct {
 	RefreshSeconds int      `toml:"refresh_seconds"`
 	StaleAfter     duration `toml:"stale_after"`
+	DownAfter      duration `toml:"down_after"`
 	Theme          string   `toml:"theme"`
 	ShowSparklines bool     `toml:"show_sparklines"`
 	SparkGlyphs    string   `toml:"spark_glyphs"`
@@ -124,7 +125,7 @@ type hostConfig struct {
 
 func (h hostConfig) enabled() bool { return h.Enabled == nil || *h.Enabled }
 
-// duration lets stale_after be written as a Go duration string like "15s".
+// duration lets stale_after and down_after be written as a Go duration string like "15s".
 type duration struct{ time.Duration }
 
 func (d *duration) UnmarshalText(b []byte) error {
@@ -140,7 +141,8 @@ func defaultConfig() config {
 	return config{
 		Dashboard: dashboardConfig{
 			RefreshSeconds: 2,
-			StaleAfter:     duration{15 * time.Second},
+			StaleAfter:     duration{300 * time.Second},
+			DownAfter:      duration{12 * time.Hour},
 			Theme:          defaultTheme,
 			ShowSparklines: true,
 			SparkGlyphs:    sparkGlyphsAuto,
@@ -213,6 +215,9 @@ func (c config) validate() error {
 	}
 	if c.Dashboard.StaleAfter.Duration < c.refresh() {
 		return errors.New("dashboard.stale_after must not be shorter than refresh_seconds")
+	}
+	if c.Dashboard.DownAfter.Duration < c.Dashboard.StaleAfter.Duration {
+		return errors.New("dashboard.down_after must not be shorter than stale_after")
 	}
 	if d := c.Dashboard; d.MarginTop < 0 || d.MarginBottom < 0 || d.MarginLeft < 0 || d.MarginRight < 0 {
 		return errors.New("dashboard.margin_* must not be negative")

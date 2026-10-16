@@ -93,6 +93,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | --- | --- |
 | `dashboard.refresh_seconds` | How often to fetch metrics (default `30`) |
 | `dashboard.stale_after` | How old data can get before a host shows as STALE, e.g. `"300s"` (default `"300s"`) |
+| `dashboard.down_after` | How old data can get before a STALE host shows as DOWN, e.g. `"12h"` (default `"12h"`) |
 | `dashboard.theme` | `"default"`, `"archaic"`, `"fortuna"`, `"gaia"`, `"hinterland"` or `"noir"` (default `"default"`) |
 | `dashboard.show_sparklines` | Show the history graphs (default `true`) |
 | `dashboard.spark_glyphs` | `"eighths"` draws bars in eighth-row steps (`▁▂▃…█`). `"halves"` uses only `▄` and `█`. `"line"` draws just the top of each bar with `_`, `-` and `¯`, which every Linux text console font has; the eighth blocks show as diamonds there. `"auto"` picks `"line"` when running on a Linux virtual console (`/dev/ttyN`) or with `TERM=linux` (default `"auto"`) |
@@ -184,7 +185,7 @@ If that prints a line, the TUI can read the host.
 - **Each host shows a status:**
   - **UP** while data is fresh.
   - **STALE 302s** once the last good data is older than `stale_after`.
-  - **DOWN** if the host has never answered.
+  - **DOWN** if the host has never answered, or its last good data is older than `down_after`.
 
   A short version of the error (e.g. `timeout`, `connection refused`, `unknown host`) appears on the bottom edge of the panel.
 - **Wrong responses are errors too.** A non-200 response, or a page that doesn't look like node_exporter output, counts as a failure rather than showing zeros. If a counter goes backwards (a reboot or exporter restart), that one reading's CPU and network rates are skipped instead of showing a nonsense value.
@@ -196,10 +197,12 @@ With `[telegram]` enabled, rackwatch messages a chat when a host goes down and a
 
 ```text
 ⚠️ rackbox-02 is not reachable, no data since 14:02: connection refused
+⛔ rackbox-02 went from STALE to DOWN, no data since Oct 15 14:02 (12h0m0s): connection refused
+⛔ rackbox-03 is DOWN, never reached since rackwatch started: unknown host
 ✅ rackbox-02 is back up after 25m
 ```
 
-- **Down** means the panel shows STALE or DOWN. One failed fetch isn't enough: a host that was up is reported once its data is older than `stale_after`. A host that has never answered since rackwatch started is reported right away.
+- **Down** means the panel shows STALE or DOWN. One failed fetch isn't enough: a host that was up is reported once its data is older than `stale_after`, and again when it turns DOWN after `down_after`. A host that has never answered since rackwatch started is reported right away.
 - **Quiet hours** hold messages back rather than dropping them. When they end, any host that's still down, or that recovered from an outage you were told about, is reported then. An outage that starts and ends within quiet hours isn't reported at all.
 - **Failed sends** show in the header as `TELEGRAM` and the error (e.g. `Unauthorized`, `Bad Request: chat not found`) and are retried a minute later. Messages are sent in the background, so a slow or unreachable Telegram never blocks the screen.
 

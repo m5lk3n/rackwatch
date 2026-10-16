@@ -22,15 +22,15 @@ const (
 	sendRetry = time.Minute
 )
 
-// alerter sends a Telegram message when a host goes down (STALE or DOWN on the
-// dashboard) and when it recovers. It remembers what it last reported for each
+// alerter sends a Telegram message when a host goes STALE, when it goes DOWN
+// (including from STALE) and when it recovers. It remembers what it last reported for each
 // host rather than reacting to changes, so an outage that starts during quiet
 // hours is reported when they end, and one that also ends during them isn't.
 type alerter struct {
 	cfg      telegramConfig
 	send     func(ctx context.Context, text string) error
-	reported []bool      // per host: the last message sent said it was down
-	since    []time.Time // per host: when the reported outage started
+	reported []hostStatus // per host: the status the last message sent; statusUp or zero when none
+	since    []time.Time  // per host: when the reported outage started
 	inFlight []bool
 	retryAt  time.Time
 	lastErr  error // why the last send failed; nil once one succeeds
@@ -38,17 +38,17 @@ type alerter struct {
 }
 
 type alertResult struct {
-	host  int
-	down  bool
-	since time.Time
-	err   error
+	host   int
+	status hostStatus
+	since  time.Time
+	err    error
 }
 
 func newAlerter(cfg telegramConfig, hosts int) *alerter {
 	return &alerter{
 		cfg:      cfg,
 		send:     cfg.sendMessage,
-		reported: make([]bool, hosts),
+		reported: make([]hostStatus, hosts),
 		since:    make([]time.Time, hosts),
 		inFlight: make([]bool, hosts),
 		results:  make(chan alertResult, hosts),
@@ -57,18 +57,21 @@ func newAlerter(cfg telegramConfig, hosts int) *alerter {
 
 // check starts a send for every host whose status differs from what was last
 // reported. Sends run in the background; their results arrive on a.results.
-func (a *alerter) check(now time.Time, hosts []*hostState, staleAfter time.Duration) {
+func (a *alerter) check(now time.Time, hosts []*hostState, staleAfter, downAfter time.Duration) {
 	if a.cfg.quiet(now) || now.Before(a.retryAt) {
 		return
 	}
 	for i, h := range hosts {
-		st := h.status(now, staleAfter)
-		down := st == statusStale || st == statusDown
-		if st == statusWaiting || down == a.reported[i] || a.inFlight[i] {
+		st := h.status(now, staleAfter, downAfter)
+		last := a.reported[i]
+		if last == statusWaiting {
+			last = statusUp
+		}
+		if st == statusWaiting || st == last || a.inFlight[i] {
 			continue
 		}
 		since := a.since[i]
-		if down {
+		if st != statusUp && last == statusUp {
 			since = h.lastOK
 			if since.IsZero() {
 				since = now
@@ -79,7 +82,7 @@ func (a *alerter) check(now time.Time, hosts []*hostState, staleAfter time.Durat
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), sendTimeout)
 			defer cancel()
-			a.results <- alertResult{host: i, down: down, since: since, err: a.send(ctx, text)}
+			a.results <- alertResult{host: i, status: st, since: since, err: a.send(ctx, text)}
 		}()
 	}
 }
@@ -92,7 +95,7 @@ func (a *alerter) apply(r alertResult, now time.Time) {
 		return
 	}
 	a.lastErr = nil
-	a.reported[r.host] = r.down
+	a.reported[r.host] = r.status
 	a.since[r.host] = r.since
 }
 
@@ -101,13 +104,24 @@ func alertText(h *hostState, st hostStatus, now, since time.Time) string {
 	if h.lastErr != nil {
 		reason = ": " + shortErr(h.lastErr)
 	}
-	switch st {
-	case statusDown:
-		return fmt.Sprintf("⛔ %s is down%s", h.cfg.Name, reason)
-	case statusStale:
-		return fmt.Sprintf("⚠️ %s is not reachable, no data since %s%s", h.cfg.Name, since.Format("15:04"), reason)
+	switch {
+	case st == statusDown && h.lastOK.IsZero():
+		return fmt.Sprintf("⛔ %s is DOWN, never reached since rackwatch started%s", h.cfg.Name, reason)
+	case st == statusDown:
+		return fmt.Sprintf("⛔ %s went from STALE to DOWN, no data since %s (%s)%s",
+			h.cfg.Name, clock(since, now), now.Sub(since).Round(time.Minute), reason)
+	case st == statusStale:
+		return fmt.Sprintf("⚠️ %s is not reachable, no data since %s%s", h.cfg.Name, clock(since, now), reason)
 	}
 	return fmt.Sprintf("✅ %s is back up after %s", h.cfg.Name, now.Sub(since).Round(time.Minute))
+}
+
+// clock formats t as a time of day, with the date when it isn't on now's day.
+func clock(t, now time.Time) string {
+	if y, m, d := t.Date(); y == now.Year() && m == now.Month() && d == now.Day() {
+		return t.Format("15:04")
+	}
+	return t.Format("Jan 2 15:04")
 }
 
 // quiet reports whether t, in the local time of this machine, falls within the

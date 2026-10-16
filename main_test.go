@@ -135,7 +135,8 @@ func TestUnreachableHostKeepsLastSnapshot(t *testing.T) {
 	staleAfter := 15 * time.Second
 
 	pollOnce()
-	if st := h.status(time.Now(), staleAfter); st != statusUp {
+	downAfter := time.Hour
+	if st := h.status(time.Now(), staleAfter, downAfter); st != statusUp {
 		t.Fatalf("status = %v, want up", st)
 	}
 	up = false
@@ -143,8 +144,11 @@ func TestUnreachableHostKeepsLastSnapshot(t *testing.T) {
 	if h.lastErr == nil || h.current.mem != 75 {
 		t.Fatalf("after failure: err=%v mem=%v, want error and kept snapshot", h.lastErr, h.current.mem)
 	}
-	if st := h.status(time.Now().Add(time.Minute), staleAfter); st != statusStale {
+	if st := h.status(time.Now().Add(time.Minute), staleAfter, downAfter); st != statusStale {
 		t.Errorf("status = %v, want stale", st)
+	}
+	if st := h.status(time.Now().Add(2*time.Hour), staleAfter, downAfter); st != statusDown {
+		t.Errorf("status = %v, want down after down_after", st)
 	}
 	if got := h.history[metricMem].last(2); got[0] != 75 || !math.IsNaN(got[1]) {
 		t.Errorf("history = %v, want [75 NaN]", got)
@@ -155,7 +159,7 @@ func TestNeverReachableHostIsDown(t *testing.T) {
 	h := newHostState(hostConfig{Name: "rack-03", MetricsSource: "http://127.0.0.1:1/metrics"})
 	s, err := h.collect(context.Background())
 	h.apply(pollResult{sample: s, err: err})
-	if st := h.status(time.Now(), time.Minute); st != statusDown {
+	if st := h.status(time.Now(), time.Minute, time.Hour); st != statusDown {
 		t.Errorf("status = %v, want down", st)
 	}
 	if msg := shortErr(h.lastErr); strings.Contains(msg, "http://") {
@@ -696,7 +700,7 @@ func TestAlerter(t *testing.T) {
 	// check sends in the background; wait for and apply every result.
 	check := func(now time.Time) {
 		t.Helper()
-		a.check(now, hosts, staleAfter)
+		a.check(now, hosts, staleAfter, time.Hour)
 		for i := range a.inFlight {
 			if a.inFlight[i] {
 				a.apply(<-a.results, now)
@@ -718,7 +722,7 @@ func TestAlerter(t *testing.T) {
 	failed(hosts[1])
 	failed(hosts[0])
 	check(noon.Add(time.Minute))
-	if len(sent) != 1 || !strings.Contains(sent[0], "rack-02 is down: connection refused") {
+	if len(sent) != 1 || !strings.Contains(sent[0], "rack-02 is DOWN, never reached since rackwatch started: connection refused") {
 		t.Fatalf("sent %q, want rack-02 down", sent)
 	}
 	check(noon.Add(6 * time.Minute))
@@ -730,10 +734,20 @@ func TestAlerter(t *testing.T) {
 		t.Fatalf("sent %q, want no repeat", sent)
 	}
 
+	// STALE turning DOWN after down_after is reported once more.
+	check(noon.Add(61 * time.Minute))
+	if len(sent) != 3 || !strings.Contains(sent[2], "rack-01 went from STALE to DOWN, no data since 12:00 (1h1m0s): connection refused") {
+		t.Fatalf("sent %q, want rack-01 down", sent)
+	}
+	check(noon.Add(62 * time.Minute))
+	if len(sent) != 3 {
+		t.Fatalf("sent %q, want no repeat", sent)
+	}
+
 	// Recovery.
 	ok(hosts[0], noon.Add(20*time.Minute))
 	check(noon.Add(20 * time.Minute))
-	if len(sent) != 3 || !strings.Contains(sent[2], "rack-01 is back up after 20m") {
+	if len(sent) != 4 || !strings.Contains(sent[3], "rack-01 is back up after 20m") {
 		t.Fatalf("sent %q, want rack-01 back up", sent)
 	}
 
@@ -741,16 +755,16 @@ func TestAlerter(t *testing.T) {
 	fail = errors.New("Unauthorized")
 	ok(hosts[1], noon.Add(21*time.Minute))
 	check(noon.Add(21 * time.Minute))
-	if a.lastErr == nil || len(sent) != 4 {
+	if a.lastErr == nil || len(sent) != 5 {
 		t.Fatalf("lastErr = %v after failed send", a.lastErr)
 	}
 	fail = nil
 	check(noon.Add(21*time.Minute + 30*time.Second))
-	if len(sent) != 4 {
+	if len(sent) != 5 {
 		t.Fatal("retried before sendRetry")
 	}
 	check(noon.Add(22 * time.Minute))
-	if len(sent) != 5 || a.lastErr != nil || !strings.Contains(sent[4], "rack-02 is back up") {
+	if len(sent) != 6 || a.lastErr != nil || !strings.Contains(sent[5], "rack-02 is back up") {
 		t.Fatalf("sent %q, lastErr %v, want rack-02 back up", sent, a.lastErr)
 	}
 
@@ -764,13 +778,14 @@ func TestAlerter(t *testing.T) {
 	check(night.Add(time.Hour))
 	ok(hosts[0], night.Add(2*time.Hour))
 	check(night.Add(2 * time.Hour))
-	if len(sent) != 5 {
-		t.Fatalf("sent %q during quiet hours", sent[5:])
+	if len(sent) != 6 {
+		t.Fatalf("sent %q during quiet hours", sent[6:])
 	}
 	ok(hosts[0], night.Add(7*time.Hour))
 	check(night.Add(7 * time.Hour))
-	if len(sent) != 6 || !strings.Contains(sent[5], "rack-02 is not reachable, no data since 01:00") {
-		t.Fatalf("sent %q, want only rack-02 at 08:00", sent[5:])
+	// rack-02 passed down_after while quiet, so it's reported as down directly.
+	if len(sent) != 7 || !strings.Contains(sent[6], "rack-02 went from STALE to DOWN, no data since 01:00 (7h0m0s)") {
+		t.Fatalf("sent %q, want only rack-02 at 08:00", sent[6:])
 	}
 }
 
@@ -805,5 +820,15 @@ func TestTelegramSendMessage(t *testing.T) {
 	err := cfg.sendMessage(context.Background(), "x")
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Errorf("err = %v, want an error without the bot token", err)
+	}
+}
+
+func TestClock(t *testing.T) {
+	now := time.Date(2026, 10, 16, 2, 30, 0, 0, time.Local)
+	if got := clock(now.Add(-time.Hour), now); got != "01:30" {
+		t.Errorf("same day: %q, want 01:30", got)
+	}
+	if got := clock(now.Add(-12*time.Hour), now); got != "Oct 15 14:30" {
+		t.Errorf("previous day: %q, want Oct 15 14:30", got)
 	}
 }

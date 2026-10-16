@@ -124,7 +124,7 @@ func (d *dashboard) Draw(buf *ui.Buffer) {
 func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 	up := 0
 	for _, h := range d.hosts {
-		if h.status(d.now, d.cfg.Dashboard.StaleAfter.Duration) == statusUp {
+		if h.status(d.now, d.cfg.Dashboard.StaleAfter.Duration, d.cfg.Dashboard.DownAfter.Duration) == statusUp {
 			up++
 		}
 	}
@@ -165,7 +165,7 @@ func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 }
 
 func (d *dashboard) drawHost(buf *ui.Buffer, h *hostState, r image.Rectangle) {
-	status := h.status(d.now, d.cfg.Dashboard.StaleAfter.Duration)
+	status := h.status(d.now, d.cfg.Dashboard.StaleAfter.Duration, d.cfg.Dashboard.DownAfter.Duration)
 
 	b := ui.NewBlock()
 	b.BorderRounded = true

@@ -1,6 +1,7 @@
 [dashboard]
 refresh_seconds = 30
 stale_after = "300s"
+down_after = "12h"
 theme = "default"
 show_sparklines = true
 # "auto", "eighths", "halves" or "line"; auto uses line on the Linux text console

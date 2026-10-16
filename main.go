@@ -67,7 +67,7 @@ func run(cfg config) error {
 	}
 	checkAlerts := func() {
 		if alerts != nil {
-			alerts.check(time.Now(), hosts, cfg.Dashboard.StaleAfter.Duration)
+			alerts.check(time.Now(), hosts, cfg.Dashboard.StaleAfter.Duration, cfg.Dashboard.DownAfter.Duration)
 		}
 	}
 

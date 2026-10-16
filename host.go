@@ -18,7 +18,7 @@ const (
 	statusWaiting hostStatus = iota // no attempt finished yet
 	statusUp                        // fresh data
 	statusStale                     // last good data is older than stale_after
-	statusDown                      // never reached
+	statusDown                      // never reached, or no good data for down_after
 )
 
 // ring is a fixed-size buffer of recent samples. NaN marks a gap.
@@ -122,11 +122,11 @@ func (h *hostState) apply(r pollResult) {
 	}
 }
 
-func (h *hostState) status(now time.Time, staleAfter time.Duration) hostStatus {
+func (h *hostState) status(now time.Time, staleAfter, downAfter time.Duration) hostStatus {
 	switch {
 	case h.lastOK.IsZero() && h.lastErr == nil:
 		return statusWaiting
-	case h.lastOK.IsZero():
+	case h.lastOK.IsZero(), now.Sub(h.lastOK) > downAfter:
 		return statusDown
 	case now.Sub(h.lastOK) > staleAfter:
 		return statusStale
