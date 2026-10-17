@@ -2,9 +2,10 @@ package main
 
 import (
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -62,21 +63,39 @@ func blankConsole(off bool) {
 	cmd.Stdin = os.Stdin
 	// Without setterm, or if it fails, the screen just stays black.
 	if out, err := cmd.CombinedOutput(); err != nil {
-		blackoutLog.Printf("setterm --blank %s: %v %s", arg, err, out)
+		blackoutLog.Warn("setterm failed", "blank", arg, "err", err, "output", strings.TrimSpace(string(out)))
 	}
 }
 
 // blackoutLog records when the black-out starts and ends and what woke the
 // dashboard.
-var blackoutLog = journalLog("blackout: ")
+var blackoutLog = journalLog("blackout")
+
+// logLevel is the lowest level the journal loggers write: info, or debug with
+// log.debug set in the config.
+var logLevel slog.LevelVar
 
 // journalLog logs to stderr, for the journal when running as a service. On a
 // terminal it would scribble over the dashboard, so it stays quiet there.
-func journalLog(prefix string) *log.Logger {
+func journalLog(component string) *slog.Logger {
 	if fi, err := os.Stderr.Stat(); err != nil || fi.Mode()&os.ModeCharDevice != 0 {
-		return log.New(io.Discard, "", 0)
+		return slog.New(slog.DiscardHandler)
 	}
-	return log.New(os.Stderr, prefix, 0)
+	return slog.New(journalHandler(os.Stderr)).With("component", component)
+}
+
+// journalHandler writes key=value lines at logLevel and up, without a time:
+// the journal stamps each line itself.
+func journalHandler(w io.Writer) slog.Handler {
+	return slog.NewTextHandler(w, &slog.HandlerOptions{
+		Level: &logLevel,
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 && a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	})
 }
 
 // deliberate reports whether e is someone using the screen: a key, or a

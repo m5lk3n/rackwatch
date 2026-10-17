@@ -12,3 +12,4 @@ x 2026-10-14 add "buttons" to enable touchscreen usage
 x 2026-10-14 add a TLDR section to the README
 x 2026-10-15 update README with latest screenshot
 x 2026-10-17 add a CLAUDE.md, mentioning e.g. to lint Markdown after each update
+x 2026-10-18 add a log-level, e.g., log touch events in debug

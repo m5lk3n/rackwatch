@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -30,6 +31,9 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "rackwatch:", err)
 		os.Exit(1)
+	}
+	if cfg.Log.Debug {
+		logLevel.Set(slog.LevelDebug)
 	}
 	err = run(cfg)
 	if errors.Is(err, errRestart) {
@@ -94,7 +98,7 @@ func run(cfg config) error {
 		}
 		dark = want
 		if dark {
-			blackoutLog.Print("screen off")
+			blackoutLog.Info("screen off")
 			stopSaver()
 			if console {
 				black.th.setConsolePalette(os.Stdout)
@@ -108,7 +112,7 @@ func run(cfg config) error {
 			}
 			return
 		}
-		blackoutLog.Print("screen on")
+		blackoutLog.Info("screen on")
 		// The black screen covers the margins too, which the dashboard doesn't repaint.
 		ui.Clear()
 		if console {
@@ -224,7 +228,7 @@ func run(cfg config) error {
 			if now := time.Now(); deliberate(e) && e.ID != "<C-c>" && cfg.Blackout.active(now) {
 				// Keep the dashboard up while it's being used.
 				if dark {
-					blackoutLog.Printf("woken by %s", e.ID)
+					blackoutLog.Info("screen woken", "by", e.ID)
 				}
 				wakeUntil = now.Add(blackoutWake)
 				if dark {
@@ -238,7 +242,9 @@ func run(cfg config) error {
 				continue
 			}
 			if tapped {
-				switch buttonAt(dash.buttons, at.X, at.Y) {
+				b := buttonAt(dash.buttons, at.X, at.Y)
+				touchLog.Debug("tap", "x", at.X, "y", at.Y, "button", b)
+				switch b {
 				case buttonRestart:
 					if dash.restartArmed {
 						return errRestart

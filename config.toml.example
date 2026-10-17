@@ -46,6 +46,10 @@ swap_xy = false
 invert_x = false
 invert_y = false
 
+[log]
+# also log each touch and tap, to see where taps land; read the log with: journalctl -u rackwatch
+debug = false
+
 [thresholds]
 cpu_warning = 80
 memory_warning = 85

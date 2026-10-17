@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"image"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -178,7 +180,7 @@ func TestConfigFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Dashboard.StaleAfter.Duration != 300*time.Second || cfg.Dashboard.MarginTop != 1 || cfg.Dashboard.MarginLeft != 5 || cfg.Dashboard.MarginRight != 4 || len(cfg.Hosts) != 3 {
+	if cfg.Dashboard.StaleAfter.Duration != 300*time.Second || cfg.Dashboard.MarginTop != 1 || cfg.Dashboard.MarginLeft != 5 || cfg.Dashboard.MarginRight != 4 || cfg.Log.Debug || len(cfg.Hosts) != 3 {
 		t.Errorf("unexpected config: %+v", cfg)
 	}
 }
@@ -640,6 +642,22 @@ func TestTouchConfig(t *testing.T) {
 	cfg.Touch.Device = "/dev/input/event4"
 	if err := cfg.validate(); err != nil {
 		t.Errorf("touch with a device: %v", err)
+	}
+}
+
+func TestJournalLog(t *testing.T) {
+	var buf bytes.Buffer
+	l := slog.New(journalHandler(&buf)).With("component", "touch")
+	t.Cleanup(func() { logLevel.Set(slog.LevelInfo) })
+
+	l.Debug("tap", "x", 3, "y", 0, "button", buttonRefresh)
+	if buf.Len() != 0 {
+		t.Errorf("debug logged at info level: %q", buf.String())
+	}
+	logLevel.Set(slog.LevelDebug)
+	l.Debug("tap", "x", 3, "y", 0, "button", buttonRefresh)
+	if got, want := buf.String(), "level=DEBUG msg=tap component=touch x=3 y=0 button=refresh\n"; got != want {
+		t.Errorf("logged %q, want %q", got, want)
 	}
 }
 

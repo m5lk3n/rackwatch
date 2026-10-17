@@ -1,2 +1,1 @@
 add a rack image?
-add a log-level, e.g., log touch events in debug

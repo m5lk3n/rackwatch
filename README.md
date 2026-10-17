@@ -111,6 +111,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | `touch.enabled` | Read a touchscreen directly on the Linux text console, see [Touchscreen](#touchscreen) (default `false`) |
 | `touch.device` | The touchscreen's input device, e.g. `"/dev/input/by-id/usb-…-event-if00"` |
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
+| `log.debug` | Also log each touch and tap, see [Touchscreen](#touchscreen). Like all of rackwatch's logging, this goes to stderr only when stderr isn't a terminal, as with the service, where `journalctl -u rackwatch` shows it (default `false`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C |
 | `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
@@ -150,7 +151,9 @@ In a terminal window, taps on a touchscreen reach rackwatch like mouse clicks, w
 
 If taps land in the wrong place, the touchscreen is turned or mirrored against the display: set `swap_xy`, `invert_x` or `invert_y` to `true`.
 
-If taps do nothing, look at why the device couldn't be read. If it's missing, unplugged or unreadable, rackwatch carries on without it and tries again every 5 seconds. It logs the reason to stderr, but only when stderr isn't the terminal, so the dashboard isn't garbled. With the service, `journalctl -u rackwatch | grep touch` shows it. Run directly, send stderr to a file: `./rackwatch 2>touch.log`. A device that opened logs `touch: reading …, x 0..N, y 0..M`; otherwise the log gives the error, most often `permission denied`.
+If taps do nothing, look at why the device couldn't be read. If it's missing, unplugged or unreadable, rackwatch carries on without it and tries again every 5 seconds. It logs the reason to stderr, but only when stderr isn't the terminal, so the dashboard isn't garbled. With the service, `journalctl -u rackwatch | grep touch` shows it. Run directly, send stderr to a file: `./rackwatch 2>touch.log`. A device that opened logs `msg="reading touchscreen" component=touch device=… x=0..N y=0..M`; otherwise the log gives the error, most often `permission denied`.
+
+If taps land somewhere unexpected, set `debug = true` under `[log]` and restart. Each touch then logs its position on the device (`dev_x`, `dev_y`) and the cell it maps to (`x`, `y`), and each tap logs the header button it hit, if any (`button=refresh`, `restart` or `none`).
 
 ## Setting up remote hosts
 

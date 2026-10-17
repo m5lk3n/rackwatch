@@ -24,6 +24,7 @@ type config struct {
 	Thresholds  thresholdsConfig  `toml:"thresholds"`
 	Telegram    telegramConfig    `toml:"telegram"`
 	Touch       touchConfig       `toml:"touch"`
+	Log         logConfig         `toml:"log"`
 	Hosts       []hostConfig      `toml:"hosts"`
 }
 
@@ -67,6 +68,10 @@ type touchConfig struct {
 	SwapXY  bool   `toml:"swap_xy"`  // the touchscreen is turned a quarter against the display
 	InvertX bool   `toml:"invert_x"` // left and right are the wrong way round
 	InvertY bool   `toml:"invert_y"` // top and bottom are the wrong way round
+}
+
+type logConfig struct {
+	Debug bool `toml:"debug"` // also log each touch and tap
 }
 
 // chatID accepts a numeric chat ID as well as a "@channel" name.

@@ -19,6 +19,16 @@ const (
 	buttonRefresh
 )
 
+func (b touchButton) String() string {
+	switch b {
+	case buttonRestart:
+		return "restart"
+	case buttonRefresh:
+		return "refresh"
+	}
+	return "none"
+}
+
 // restartConfirm is how long a tap on restart waits for the second tap that
 // confirms it, so a stray touch can't restart the dashboard.
 const restartConfirm = 5 * time.Second

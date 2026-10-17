@@ -33,7 +33,7 @@ const (
 // was missing or unplugged.
 const touchRetry = 5 * time.Second
 
-var touchLog = journalLog("touch: ")
+var touchLog = journalLog("touch")
 
 // axisRange is what the device reports as an axis's lowest and highest value.
 type axisRange struct{ min, max int32 }
@@ -110,7 +110,7 @@ func readTouchscreen(cfg touchConfig, out chan<- ui.Event) {
 		err := readTouches(cfg, out)
 		// Log each new problem once, not every touchRetry.
 		if err.Error() != lastErr {
-			touchLog.Print(err)
+			touchLog.Warn("can't read touchscreen", "err", err)
 			lastErr = err.Error()
 		}
 		time.Sleep(touchRetry)
@@ -131,7 +131,8 @@ func readTouches(cfg touchConfig, out chan<- ui.Event) error {
 	if m.yRange, err = absRange(f, absY); err != nil {
 		return err
 	}
-	touchLog.Printf("reading %s, x %d..%d, y %d..%d", cfg.Device, m.xRange.min, m.xRange.max, m.yRange.min, m.yRange.max)
+	touchLog.Info("reading touchscreen", "device", cfg.Device,
+		"x", fmt.Sprintf("%d..%d", m.xRange.min, m.xRange.max), "y", fmt.Sprintf("%d..%d", m.yRange.min, m.yRange.max))
 
 	// struct input_event: a struct timeval, then type, code and value.
 	tv := int(unsafe.Sizeof(unix.Timeval{}))
@@ -152,10 +153,14 @@ func readTouches(cfg touchConfig, out chan<- ui.Event) error {
 		w, h := ui.TerminalDimensions()
 		x, y := m.cell(d.x, d.y, w, h)
 		at := ui.Mouse{X: x, Y: y}
+		// The device position next to the cell shows whether swap_xy and
+		// invert_* are right.
 		if press {
+			touchLog.Debug("press", "dev_x", d.x, "dev_y", d.y, "x", x, "y", y)
 			out <- ui.Event{Type: ui.MouseEvent, ID: "<MouseLeft>", Payload: at}
 		}
 		if release {
+			touchLog.Debug("release", "dev_x", d.x, "dev_y", d.y, "x", x, "y", y)
 			out <- ui.Event{Type: ui.MouseEvent, ID: "Unknown_Mouse_Button", Payload: at}
 		}
 	}
