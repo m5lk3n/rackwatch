@@ -1,2 +1,2 @@
 add a rack image?
-add a CLAUDE.md, mentioning e.g. to lint Markdown after each update
+add a log-level, e.g., log touch events in debug

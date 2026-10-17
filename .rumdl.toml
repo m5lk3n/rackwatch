@@ -1,0 +1,3 @@
+[global]
+# docs keep each paragraph on a single line
+disable = ["MD013"]

@@ -5,8 +5,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -66,29 +64,6 @@ func blankConsole(off bool) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		blackoutLog.Printf("setterm --blank %s: %v %s", arg, err, out)
 	}
-}
-
-// drmDPMS matches the files where DRM connectors report whether their output
-// is on. A variable so tests can point it elsewhere.
-var drmDPMS = "/sys/class/drm/*/dpms"
-
-// displayOn reports whether the output to a connected display is on. During
-// the black-out the kernel can turn it back on by itself: any event from an
-// input device bound to the console keyboard, even noise from a touchscreen,
-// unblanks the console, and a hotplug restores the mode with the output on.
-// Without DRM it reports false, as there is nothing to check.
-func displayOn() bool {
-	paths, _ := filepath.Glob(drmDPMS)
-	for _, p := range paths {
-		status, err := os.ReadFile(filepath.Join(filepath.Dir(p), "status"))
-		if err != nil || strings.TrimSpace(string(status)) != "connected" {
-			continue
-		}
-		if dpms, err := os.ReadFile(p); err == nil && strings.TrimSpace(string(dpms)) == "On" { // #nosec G304 -- p comes from a fixed sysfs glob
-			return true
-		}
-	}
-	return false
 }
 
 // blackoutLog records when the black-out starts and ends and what woke the

@@ -22,6 +22,10 @@ needs-golangci-lint:
 needs-govulncheck:
 	@command -v govulncheck >/dev/null 2>&1 || { echo >&2 "govulncheck is required but it's not installed. Aborting."; exit 1; }
 
+.PHONY: needs-rumdl
+needs-rumdl:
+	@command -v rumdl >/dev/null 2>&1 || { echo >&2 "rumdl is required but it's not installed. Aborting."; exit 1; }
+
 ## build: build the rackwatch binary
 .PHONY: build
 build:
@@ -40,3 +44,8 @@ test:
 check-security: needs-golangci-lint needs-govulncheck
 	golangci-lint run ./...
 	govulncheck ./...
+
+## lint-md: lint Markdown files with rumdl
+.PHONY: lint-md
+lint-md: needs-rumdl
+	rumdl check .
