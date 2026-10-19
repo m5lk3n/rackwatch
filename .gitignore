@@ -1,3 +1,4 @@
 config.toml
 rackwatch
 *.bak
+.rumdl_cache/
