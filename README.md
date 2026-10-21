@@ -155,6 +155,53 @@ If taps do nothing, look at why the device couldn't be read. If it's missing, un
 
 If taps land somewhere unexpected, set `debug = true` under `[log]` and restart. Each touch then logs its position on the device (`dev_x`, `dev_y`) and the cell it maps to (`x`, `y`), and each tap logs the header button it hit, if any (`button=refresh`, `restart` or `none`).
 
+## Raspberry Pi 3 B+
+
+- **Console resolution**: append this to the single line in `/boot/firmware/cmdline.txt`, separated by a space; the file must stay one line:
+
+  ```text
+  video=HDMI-A-1:1424x280@60D
+  ```
+
+- **Screen timing**: append this to `/boot/firmware/config.txt`:
+
+  ```ini
+  [all]
+  # Screen Timing (Firmware Boot)
+  hdmi_force_hotplug=1
+  hdmi_group=2
+  hdmi_mode=87
+  hdmi_cvt=1424 280 60 6 0 0 0
+  hdmi_drive=1
+  ```
+
+  Reboot for both changes to take effect.
+
+- **Margins**: on a Raspberry Pi 3 B+, the screen hides only the console's bottom row. These margins showed the dashboard best:
+
+  ```toml
+  [dashboard]
+  # rows and columns hidden by the screen's bezel
+  margin_top = 0
+  margin_bottom = 1
+  margin_left = 0
+  margin_right = 0
+  ```
+
+  You may need to restart rackwatch (`sudo systemctl restart rackwatch`) after (re)boot.
+
+- **Display off at night**: when the screen is powered over the Pi's USB, [uhubctl](https://github.com/mvp/uhubctl) can cut its power, which turns it off reliably (see `blackout.enabled` in [Configuration](#configuration)). Add these entries to root's crontab with `sudo crontab -e`:
+
+  ```crontab
+  # Turn off USB ports every night at 23:00
+  0 23 * * * /usr/sbin/uhubctl -l 1-1 -p 2 -a 0
+
+  # Turn on USB ports every morning at 08:00
+  0 8 * * * /usr/sbin/uhubctl -l 1-1 -p 2 -a 1
+  ```
+
+  Run `sudo uhubctl` to list hubs and ports if the screen sits on a different one than hub `1-1`, port `2`. The times match the default `blackout.from` and `until`.
+
 ## Setting up remote hosts
 
 Every host with a URL as its `metrics_source` must run [node_exporter](https://github.com/prometheus/node_exporter). It's the official Prometheus exporter for host metrics on Linux, but it isn't part of Prometheus and isn't installed by default on any distribution. Its default address, `:9100/metrics`, is the one the example config uses.
