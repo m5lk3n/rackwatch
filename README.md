@@ -336,7 +336,18 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 
 ---
 
+## My Rack
+
 <!-- markdownlint-disable MD033 -->
+<p align="center">
+    <img alt="My Rack" src="images/my-rack.png"/>
+    <small>(GPT-Image-2.5 enhanced my real image.)</small>
+</p>
+
+For rackmount 3D prints, I can recommend [3B Print](https://3b-print.eu/).
+
+---
+
 <p align="center">
     <a href="https://lttl.dev/"><img alt="lttl.dev logo" src="images/lttl.dev.png"/></a>
 </p>
