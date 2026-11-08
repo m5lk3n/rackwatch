@@ -340,7 +340,8 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">
-    <img alt="My Rack" src="images/my-rack.png"/>
+    <img alt="My Rack" src="images/my-rack.png" width="66%"/>
+    <br/>
     <small>(GPT-Image-2.5 enhanced my real image.)</small>
 </p>
 
