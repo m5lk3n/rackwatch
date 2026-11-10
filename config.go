@@ -252,10 +252,15 @@ func (c config) validate() error {
 	if len(c.Hosts) > maxHosts {
 		return fmt.Errorf("%d [[hosts]] configured, at most %d allowed", len(c.Hosts), maxHosts)
 	}
+	seen := make(map[string]bool, len(c.Hosts))
 	for i, h := range c.Hosts {
 		if h.Name == "" {
 			return fmt.Errorf("hosts[%d]: name is required", i)
 		}
+		if seen[h.Name] {
+			return fmt.Errorf("host %q: configured more than once", h.Name)
+		}
+		seen[h.Name] = true
 		if h.MetricsSource == sourceLocal {
 			continue
 		}

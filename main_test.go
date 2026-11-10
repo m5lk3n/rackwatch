@@ -199,6 +199,22 @@ func TestConfigHostLimit(t *testing.T) {
 	}
 }
 
+func TestConfigDuplicateHost(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Hosts = []hostConfig{
+		{Name: "a", MetricsSource: sourceLocal},
+		{Name: "b", MetricsSource: sourceLocal},
+		{Name: "a", MetricsSource: "http://example.com/metrics"},
+	}
+	if err := cfg.validate(); err == nil || !strings.Contains(err.Error(), `"a"`) {
+		t.Errorf("duplicate host name: err = %v, want error naming \"a\"", err)
+	}
+	cfg.Hosts[2].Name = "c"
+	if err := cfg.validate(); err != nil {
+		t.Errorf("distinct host names rejected: %v", err)
+	}
+}
+
 func TestConfigEnabled(t *testing.T) {
 	f := false
 	tr := true

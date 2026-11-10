@@ -113,7 +113,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
 | `log.debug` | Also log each touch and tap, see [Touchscreen](#touchscreen). Like all of rackwatch's logging, this goes to stderr only when stderr isn't a terminal, as with the service, where `journalctl -u rackwatch` shows it (default `false`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C |
-| `hosts[].name` | Name shown on the panel. Up to 10 enabled hosts can be configured |
+| `hosts[].name` | Name shown on the panel; must be unique among enabled hosts. Up to 10 enabled hosts can be configured |
 | `hosts[].metrics_source` | `"local"`, or the URL of a [node_exporter](https://github.com/prometheus/node_exporter), e.g. `"http://host:9100/metrics"` |
 | `hosts[].enabled` | Set to `false` to hide a host without deleting its entry. Disabled entries aren't validated and don't count toward the limit (default `true`) |
 
