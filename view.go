@@ -78,7 +78,7 @@ type dashboard struct {
 	th     *theme
 	spark  sparkGlyphSet
 	hosts  []*hostState
-	alerts *alerter // nil without Telegram
+	alerts []*alerter // one per enabled alert service
 	now    time.Time
 	// restartArmed shows the restart button asking for the confirming tap.
 	restartArmed bool
@@ -144,9 +144,11 @@ func (d *dashboard) drawHeader(buf *ui.Buffer, r image.Rectangle) {
 	rightX := r.Max.X - rw.StringWidth(clock+restart+gap+refresh+" ")
 	x = putString(buf, "  HOSTS ", d.th.label, x, r.Min.Y, rightX)
 	x = putString(buf, fmt.Sprintf("%d/%d UP", up, len(d.hosts)), upStyle, x, r.Min.Y, rightX)
-	if d.alerts != nil && d.alerts.lastErr != nil {
-		x = putString(buf, "  TELEGRAM ", d.th.label, x, r.Min.Y, rightX)
-		putString(buf, shortErr(d.alerts.lastErr), d.th.warn, x, r.Min.Y, rightX-1)
+	for _, a := range d.alerts {
+		if a.lastErr != nil {
+			x = putString(buf, "  "+a.name+" ", d.th.label, x, r.Min.Y, rightX)
+			x = putString(buf, shortErr(a.lastErr), d.th.warn, x, r.Min.Y, rightX-1)
+		}
 	}
 	x = putString(buf, clock, d.th.label, rightX, r.Min.Y, r.Max.X)
 	d.buttons = d.buttons[:0]

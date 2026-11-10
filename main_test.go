@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"log/slog"
 	"math"
 	"net/http"
@@ -500,23 +501,27 @@ func TestScreensaver(t *testing.T) {
 	}
 }
 
-func TestTelegramQuietHours(t *testing.T) {
+func TestQuietHours(t *testing.T) {
 	at := func(hh, mm int) time.Time { return time.Date(2026, 10, 13, hh, mm, 0, 0, time.Local) }
 	cfg := defaultConfig().Telegram
+	if n := defaultConfig().Ntfy; n.QuietFrom != cfg.QuietFrom || n.QuietUntil != cfg.QuietUntil {
+		t.Errorf("ntfy quiet hours %v-%v differ from telegram's", n.QuietFrom, n.QuietUntil)
+	}
 	for _, c := range []struct {
 		hh, mm int
 		quiet  bool
 	}{{22, 59, false}, {23, 0, true}, {3, 0, true}, {7, 59, true}, {8, 0, false}, {12, 0, false}} {
-		if got := cfg.quiet(at(c.hh, c.mm)); got != c.quiet {
+		if got := within(at(c.hh, c.mm), cfg.QuietFrom, cfg.QuietUntil); got != c.quiet {
 			t.Errorf("default quiet at %02d:%02d = %v, want %v", c.hh, c.mm, got, c.quiet)
 		}
 	}
 	cfg.QuietFrom, cfg.QuietUntil = 9*60, 17*60
-	if !cfg.quiet(at(12, 0)) || cfg.quiet(at(17, 0)) || cfg.quiet(at(8, 59)) {
+	if !within(at(12, 0), cfg.QuietFrom, cfg.QuietUntil) || within(at(17, 0), cfg.QuietFrom, cfg.QuietUntil) ||
+		within(at(8, 59), cfg.QuietFrom, cfg.QuietUntil) {
 		t.Error("09:00-17:00 quiet hours wrong")
 	}
 	cfg.QuietUntil = cfg.QuietFrom
-	if cfg.quiet(at(9, 0)) {
+	if within(at(9, 0), cfg.QuietFrom, cfg.QuietUntil) {
 		t.Error("equal quiet_from and quiet_until should disable quiet hours")
 	}
 }
@@ -724,20 +729,21 @@ func TestAlerter(t *testing.T) {
 	}
 	staleAfter := 5 * time.Minute
 	noon := time.Date(2026, 10, 13, 12, 0, 0, 0, time.Local)
-	a := newAlerter(defaultConfig().Telegram, len(hosts))
 	var sent []string
 	var fail error
-	a.send = func(_ context.Context, text string) error {
+	results := make(chan alertResult, len(hosts))
+	tg := defaultConfig().Telegram
+	a := newAlerter("TELEGRAM", tg.QuietFrom, tg.QuietUntil, func(_ context.Context, text string) error {
 		sent = append(sent, text)
 		return fail
-	}
+	}, len(hosts), results)
 	// check sends in the background; wait for and apply every result.
 	check := func(now time.Time) {
 		t.Helper()
 		a.check(now, hosts, staleAfter, time.Hour)
 		for i := range a.inFlight {
 			if a.inFlight[i] {
-				a.apply(<-a.results, now)
+				a.apply(<-results, now)
 			}
 		}
 	}
@@ -854,6 +860,118 @@ func TestTelegramSendMessage(t *testing.T) {
 	err := cfg.sendMessage(context.Background(), "x")
 	if err == nil || strings.Contains(err.Error(), "secret") {
 		t.Errorf("err = %v, want an error without the bot token", err)
+	}
+}
+
+func TestNtfyConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	write := func(ntfy string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(ntfy+"\n[[hosts]]\nname = \"a\"\nmetrics_source = \"local\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write("[ntfy]\nenabled = true\ntopic = \"rack-alerts_1\"\n")
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := cfg.Ntfy; n.Server != "https://ntfy.sh" || n.Topic != "rack-alerts_1" || n.QuietFrom != 23*60 {
+		t.Errorf("ntfy = %+v", n)
+	}
+
+	write("[ntfy]\nenabled = true\nserver = \"http://ntfy.lan:8080/\"\ntopic = \"rack\"\ntoken = \"tk_abc\"\npriority = 4\n" +
+		"quiet_from = \"00:00\"\nquiet_until = \"00:00\"\n")
+	if cfg, err := loadConfig(path); err != nil || cfg.Ntfy.topicURL() != "http://ntfy.lan:8080/rack" || cfg.Ntfy.Priority != 4 {
+		t.Errorf("self-hosted: %v, %+v", err, cfg.Ntfy)
+	}
+
+	for _, bad := range []string{
+		"[ntfy]\nenabled = true\n",
+		"[ntfy]\nenabled = true\ntopic = \"a/b\"\n",
+		"[ntfy]\nenabled = true\ntopic = \"rack\"\nserver = \"ntfy.sh\"\n",
+		"[ntfy]\nenabled = true\ntopic = \"rack\"\nserver = \"https://u:p@ntfy.sh\"\n",
+		"[ntfy]\nenabled = true\ntopic = \"rack\"\ntoken = \"tk_abc\"\nusername = \"me\"\n",
+		"[ntfy]\nenabled = true\ntopic = \"rack\"\npassword = \"secret\"\n",
+		"[ntfy]\nenabled = true\ntopic = \"rack\"\npriority = 6\n",
+		"[ntfy]\nurl = \"https://ntfy.sh\"\n",
+	} {
+		write(bad)
+		if _, err := loadConfig(path); err == nil {
+			t.Errorf("accepted %q, want error", bad)
+		}
+	}
+
+	write("[ntfy]\nenabled = false\n")
+	if _, err := loadConfig(path); err != nil {
+		t.Errorf("disabled ntfy without topic rejected: %v", err)
+	}
+}
+
+func TestNtfyPublish(t *testing.T) {
+	var path, body, title, prio, auth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		path, body, title, prio, auth = r.URL.Path, string(b), r.Header.Get("Title"), r.Header.Get("Priority"), r.Header.Get("Authorization")
+		if auth == "Bearer bad" {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"code":40101,"http":401,"error":"unauthorized","link":"https://ntfy.sh/docs/publish/#authentication"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"x","event":"message","topic":"rack"}`))
+	}))
+	defer srv.Close()
+
+	cfg := ntfyConfig{Server: srv.URL + "/", Topic: "rack", Priority: 4, Token: "tk_abc"}
+	if err := cfg.publish(context.Background(), "⛔ rack-02 is down"); err != nil {
+		t.Fatal(err)
+	}
+	if path != "/rack" || body != "⛔ rack-02 is down" || title != "rackwatch" || prio != "4" || auth != "Bearer tk_abc" {
+		t.Errorf("request = %s %q title=%q priority=%q auth=%q", path, body, title, prio, auth)
+	}
+
+	cfg = ntfyConfig{Server: srv.URL, Topic: "rack", Username: "me", Password: "pw"}
+	if err := cfg.publish(context.Background(), "x"); err != nil || prio != "" || auth != "Basic bWU6cHc=" {
+		t.Errorf("basic auth: err=%v priority=%q auth=%q", err, prio, auth)
+	}
+
+	cfg = ntfyConfig{Server: srv.URL, Topic: "rack", Token: "bad"}
+	if err := cfg.publish(context.Background(), "x"); err == nil || err.Error() != "unauthorized" {
+		t.Errorf("err = %v, want ntfy's error", err)
+	}
+
+	cfg = ntfyConfig{Server: "http://127.0.0.1:1", Topic: "secret-topic"}
+	if err := cfg.publish(context.Background(), "x"); err == nil || strings.Contains(err.Error(), "secret") {
+		t.Errorf("err = %v, want an error without the topic", err)
+	}
+}
+
+func TestNewAlerters(t *testing.T) {
+	cfg := defaultConfig()
+	if a, results := newAlerters(cfg, 3); a != nil || results != nil {
+		t.Errorf("alerters without any enabled: %v", a)
+	}
+	cfg.Telegram.Enabled = true
+	cfg.Ntfy.Enabled = true
+	alerts, _ := newAlerters(cfg, 3)
+	if len(alerts) != 2 || alerts[0].name != "TELEGRAM" || alerts[1].name != "NTFY" {
+		t.Fatalf("alerters = %v, want telegram and ntfy", alerts)
+	}
+
+	// Each failing service shows in the header with its error.
+	dash := newDashboard(cfg, []*hostState{newHostState(hostConfig{Name: "a", MetricsSource: sourceLocal})})
+	dash.alerts = alerts
+	alerts[0].lastErr = errors.New("Unauthorized")
+	alerts[1].lastErr = errors.New("forbidden")
+	buf := ui.NewBuffer(image.Rect(0, 0, 160, 1))
+	dash.drawHeader(buf, buf.Rectangle)
+	var line strings.Builder
+	for x := 0; x < 160; x++ {
+		line.WriteRune(buf.GetCell(image.Pt(x, 0)).Rune)
+	}
+	if got := line.String(); !strings.Contains(got, "TELEGRAM Unauthorized  NTFY forbidden") {
+		t.Errorf("header = %q", got)
 	}
 }
 

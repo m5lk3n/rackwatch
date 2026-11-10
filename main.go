@@ -61,17 +61,12 @@ func run(cfg config) error {
 	}
 	defer ui.Close()
 
-	// Telegram alerts are sent in the background, like polls. Without them
-	// alertResults stays nil and quiet.
-	var alerts *alerter
-	var alertResults <-chan alertResult
-	if cfg.Telegram.Enabled {
-		alerts = newAlerter(cfg.Telegram, len(hosts))
-		alertResults = alerts.results
-	}
+	// Telegram and ntfy alerts are sent in the background, like polls.
+	// Without them alertResults stays nil and quiet.
+	alerts, alertResults := newAlerters(cfg, len(hosts))
 	checkAlerts := func() {
-		if alerts != nil {
-			alerts.check(time.Now(), hosts, cfg.Dashboard.StaleAfter.Duration, cfg.Dashboard.DownAfter.Duration)
+		for _, a := range alerts {
+			a.check(time.Now(), hosts, cfg.Dashboard.StaleAfter.Duration, cfg.Dashboard.DownAfter.Duration)
 		}
 	}
 
@@ -272,7 +267,7 @@ func run(cfg config) error {
 			checkAlerts()
 			render()
 		case r := <-alertResults:
-			alerts.apply(r, time.Now())
+			r.alerter.apply(r, time.Now())
 			render()
 		case <-ticker.C:
 			pollAll()

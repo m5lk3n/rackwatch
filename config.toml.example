@@ -35,6 +35,23 @@ chat_id = 123456789 # or "@channelname"
 quiet_from = "23:00"
 quiet_until = "08:00"
 
+[ntfy]
+# push a notification to an ntfy topic when a host goes down or recovers; see README for setup
+enabled = false
+# https://ntfy.sh or your own server
+server = "https://ntfy.sh"
+# anyone who knows the topic on ntfy.sh can read it, so make it hard to guess
+topic = "rackwatch-change-me"
+# for a server with access control: an access token, or username and password
+# token = "tk_..."
+# username = "rackwatch"
+# password = "..."
+# 1 (min) to 5 (max); 0 leaves it to the server
+priority = 0
+# no messages in this period (local time); outages still going when it ends are sent then
+quiet_from = "23:00"
+quiet_until = "08:00"
+
 [touch]
 # read a touchscreen directly, for the Linux text console, where taps don't reach rackwatch otherwise;
 # find the device with: ls /dev/input/by-id/ (the one ending in -event-if00, or check with evtest);

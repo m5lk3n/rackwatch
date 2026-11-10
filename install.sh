@@ -81,7 +81,7 @@ main() {
 		new_config=true
 		say "created $CONFIG from the example"
 	else
-		# It may hold the Telegram bot token, so only root and the service may read it.
+		# It may hold the Telegram bot token or ntfy credentials, so only root and the service may read it.
 		chown root:"$SERVICE_USER" "$CONFIG"
 		chmod 640 "$CONFIG"
 		say "kept existing $CONFIG"

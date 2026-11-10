@@ -5,7 +5,7 @@
   <img src="images/logo.png" alt="rackwatch logo" width="15%"/>
 </p>
 <p align="center">
-  For a 1424 × 280 screen in a 10-inch rack: A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history. Comes with optional touch support, Telegram integration, and more.
+  For a 1424 × 280 screen in a 10-inch rack: A terminal dashboard showing CPU, RAM, disk, temperature and network for every host in the rack, each with an optional sparkline of recent history. Comes with optional touch support, Telegram and ntfy alerts, and more.
 </p>
 <p align="center">
   <img alt="language" src="https://img.shields.io/badge/Go-1.27+-00ADD8?logo=go&logoColor=white"/>
@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh 
 rackwatch is a single Go binary that runs a full-screen terminal dashboard on the small display of a 10-inch rack. It shows one column per host, up to 10 hosts, with CPU, RAM, disk, temperature and network. Each metric gets a sparkline of recent history, and each host shows as UP, STALE or DOWN.
 
 - **Installation**: [install.sh](./install.sh) downloads the latest release and checks its checksum. It installs the binary to `/opt/rackwatch/` and sets up a systemd service that runs as the `rackwatch` user on TTY1, replacing the login prompt there. Run the same command again to update.
-- **Config**: a single TOML file, `/etc/rackwatch/config.toml`, created from [config.toml.example](config.toml.example) and never overwritten by updates. List your hosts there, plus optional settings for the theme, [screensaver](images/screensaver.png), night blackout, touchscreen and Telegram alerts. See [Configuration](#configuration).
+- **Config**: a single TOML file, `/etc/rackwatch/config.toml`, created from [config.toml.example](config.toml.example) and never overwritten by updates. List your hosts there, plus optional settings for the theme, [screensaver](images/screensaver.png), night blackout, touchscreen and Telegram or ntfy alerts. See [Configuration](#configuration).
 - **Dashboard**: refreshes every 30 seconds by default and keeps its history in memory. It never blocks on a slow host. Values over a threshold are highlighted. Press `r` or tap `[ refresh ]` to refresh now, `q` to quit. See [Running](#running).
 - **node_exporter**: the machine running rackwatch can read its own metrics (`metrics_source = "local"`). Every other host needs [node_exporter](https://github.com/prometheus/node_exporter) on port 9100. Install it from your distribution's package manager. It's lightweight and doesn't need a Prometheus server. See [Setting up remote hosts](#setting-up-remote-hosts).
 
@@ -102,12 +102,19 @@ See [config.toml.example](config.toml.example) for a full example.
 | `screensaver.enabled` | Show the [digital rain](images/screensaver.png) from The Matrix now and then, so the screen doesn't keep the same image (default `true`). Any key or touch ends it early; `Ctrl-C` still quits |
 | `screensaver.interval` | How often the screensaver starts, e.g. `"10m"` (default `"10m"`) |
 | `screensaver.duration` | How long it runs, e.g. `"10s"`. Must be shorter than `interval` (default `"10s"`) |
-| `blackout.enabled` | Keep the screen black at night (default `true`). Any key or touch shows the dashboard for a minute (mouse movement doesn't count); polling and Telegram alerts carry on. The screensaver doesn't run while the screen is black. On the Linux console the display is also switched off with `setterm --blank force`, which can turn off the backlight too; this needs `setterm` (from util-linux) and the console to be rackwatch's controlling terminal, as when it runs as a service on a tty. Whether the screen actually goes dark depends on its firmware: some keep the backlight on without a signal, or wake up again by themselves after a few minutes. To be sure it's off at night, cut the screen's power instead, e.g. with [uhubctl](https://github.com/mvp/uhubctl) when it's powered over USB, or with a timer or smart plug. If the touchscreen shares that USB connection, taps can't wake the dashboard while it's off. When stderr isn't a terminal, as with the service, rackwatch logs when the screen goes off and on and what woke it, so `journalctl -u rackwatch` shows why it came back |
+| `blackout.enabled` | Keep the screen black at night (default `true`). Any key or touch shows the dashboard for a minute (mouse movement doesn't count); polling and alerts carry on. The screensaver doesn't run while the screen is black. On the Linux console the display is also switched off with `setterm --blank force`, which can turn off the backlight too; this needs `setterm` (from util-linux) and the console to be rackwatch's controlling terminal, as when it runs as a service on a tty. Whether the screen actually goes dark depends on its firmware: some keep the backlight on without a signal, or wake up again by themselves after a few minutes. To be sure it's off at night, cut the screen's power instead, e.g. with [uhubctl](https://github.com/mvp/uhubctl) when it's powered over USB, or with a timer or smart plug. If the touchscreen shares that USB connection, taps can't wake the dashboard while it's off. When stderr isn't a terminal, as with the service, rackwatch logs when the screen goes off and on and what woke it, so `journalctl -u rackwatch` shows why it came back |
 | `blackout.from`, `until` | When the screen is black, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
-| `telegram.enabled` | Send a Telegram message when a host goes down or recovers, see [Telegram alerts](#telegram-alerts) (default `false`) |
+| `telegram.enabled` | Send a Telegram message when a host goes down or recovers, see [Alerts](#alerts) (default `false`) |
 | `telegram.bot_token` | The bot's token from [@BotFather](https://t.me/BotFather), e.g. `"123456789:ABC-DEF..."` |
 | `telegram.chat_id` | Where to send messages: a numeric chat ID, or `"@channelname"` for a public channel |
 | `telegram.quiet_from`, `quiet_until` | No messages between these times, in the local time of the machine running the dashboard. The period may wrap past midnight; set both to the same time to turn it off (default `"23:00"` and `"08:00"`) |
+| `ntfy.enabled` | Send an [ntfy](https://ntfy.sh) notification when a host goes down or recovers, see [Alerts](#alerts) (default `false`) |
+| `ntfy.server` | The ntfy server: `"https://ntfy.sh"` or your own, e.g. `"https://ntfy.example.com"` (default `"https://ntfy.sh"`) |
+| `ntfy.topic` | The topic to publish to: 1 to 64 letters, digits, `-` or `_` |
+| `ntfy.token` | An access token (`"tk_..."`) for a server with access control. Leave it out for an open topic |
+| `ntfy.username`, `password` | A user and password instead of `token` |
+| `ntfy.priority` | `1` (min) to `5` (max), which decides how loudly the phone notifies you; `0` leaves it to the server, which uses `3` (default `0`) |
+| `ntfy.quiet_from`, `quiet_until` | Like `telegram.quiet_from` and `quiet_until`, for ntfy (default `"23:00"` and `"08:00"`) |
 | `touch.enabled` | Read a touchscreen directly on the Linux text console, see [Touchscreen](#touchscreen) (default `false`) |
 | `touch.device` | The touchscreen's input device, e.g. `"/dev/input/by-id/usb-…-event-if00"` |
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
@@ -240,9 +247,9 @@ If that prints a line, the TUI can read the host.
 - **Wrong responses are errors too.** A non-200 response, or a page that doesn't look like node_exporter output, counts as a failure rather than showing zeros. If a counter goes backwards (a reboot or exporter restart), that one reading's CPU and network rates are skipped instead of showing a nonsense value.
 - **Thresholds are highlighted.** Values at or above `[thresholds]` are highlighted, and so are the individual sparkline bars that crossed them. The highlight is each theme's warning color.
 
-## Telegram alerts
+## Alerts
 
-With `[telegram]` enabled, rackwatch messages a chat when a host goes down and again when it recovers:
+With `[telegram]` or `[ntfy]` enabled, rackwatch sends a message when a host goes down and again when it recovers:
 
 ```text
 ⚠️ rackbox-02 is not reachable, no data since 14:02: connection refused
@@ -253,9 +260,10 @@ With `[telegram]` enabled, rackwatch messages a chat when a host goes down and a
 
 - **Down** means the panel shows STALE or DOWN. One failed fetch isn't enough: a host that was up is reported once its data is older than `stale_after`, and again when it turns DOWN after `down_after`. A host that has never answered since rackwatch started is reported right away.
 - **Quiet hours** hold messages back rather than dropping them. When they end, any host that's still down, or that recovered from an outage you were told about, is reported then. An outage that starts and ends within quiet hours isn't reported at all.
-- **Failed sends** show in the header as `TELEGRAM` and the error (e.g. `Unauthorized`, `Bad Request: chat not found`) and are retried a minute later. Messages are sent in the background, so a slow or unreachable Telegram never blocks the screen.
+- **Failed sends** show in the header as `TELEGRAM` or `NTFY` and the error (e.g. `Unauthorized`, `Bad Request: chat not found`) and are retried a minute later. Messages are sent in the background, so a slow or unreachable service never blocks the screen.
+- **Both at once** work too. Each service keeps track of what it has reported on its own, with its own quiet hours, so one failing doesn't hold back the other.
 
-To set it up:
+### Telegram
 
 1. Message [@BotFather](https://t.me/BotFather) in Telegram, send `/newbot` and follow the steps. Put the token it gives you in `bot_token`. Anyone with the token can control the bot, **so keep `config.toml` private**; it's already in `.gitignore`.
 2. Send your new bot any message, so it's allowed to message you back. For a group, add the bot to the group instead.
@@ -266,6 +274,21 @@ To set it up:
    ```
 
    Group IDs are negative, e.g. `-1001234567890`.
+
+### ntfy
+
+[ntfy](https://ntfy.sh) pushes notifications to its phone app or a browser tab, from [ntfy.sh](https://ntfy.sh) or a server you host yourself.
+
+1. Pick a topic. On ntfy.sh anyone who knows a topic's name can read it, so make it hard to guess, e.g. `rackwatch-` followed by the output of `openssl rand -hex 8`. Put it in `topic`.
+2. Subscribe to the topic in the ntfy app, or open `https://ntfy.sh/<topic>` in a browser.
+3. For a self-hosted server, set `server` to its URL. If it has [access control](https://docs.ntfy.sh/config/#access-control), create a user with write access to the topic and set either `token` (from `ntfy token add <user>`) or `username` and `password`. **Keep `config.toml` private** then too.
+4. Check that it works:
+
+   ```sh
+   curl -d "test from rackwatch" https://ntfy.sh/<topic>
+   ```
+
+   For a server with access control, add `-H "Authorization: Bearer <token>"` or `-u <user>:<password>`.
 
 ## Limitations
 
@@ -312,9 +335,11 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 | [collect.go](collect.go) | Collects metrics. `local` reads `/proc`, `statfs("/")` and the hwmon/thermal sensors. URLs are parsed as node_exporter output without an extra dependency. |
 | [host.go](host.go) | Per-host state, the ring buffer of recent samples, and the status logic |
 | [view.go](view.go) | Drawing |
-| [telegram.go](telegram.go) | Telegram alerts: when to send, quiet hours, and the Bot API call |
+| [alert.go](alert.go) | Alerts: when to send, quiet hours, retries, and the message text |
+| [telegram.go](telegram.go) | The Telegram Bot API call |
+| [ntfy.go](ntfy.go) | The ntfy publish call |
 | [theme.go](theme.go) | Theme definitions. To add one, write another function and add it to the `themes` map. Styles use the 16 color slots, with only the first 8 as backgrounds, or the theme breaks on the Linux console; a test checks this. To use custom colors, set `palette` with the RGB value of each slot, as the Prot16 themes do. For another Prot16 dark variant, or any palette laid out the same way (as the default theme is), pass its 16 colors to `prot16Dark`. |
-| [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, rendering, and Telegram alerts |
+| [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, rendering, and alerts |
 
 ---
 

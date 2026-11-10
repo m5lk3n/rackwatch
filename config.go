@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type config struct {
 	Blackout    blackoutConfig    `toml:"blackout"`
 	Thresholds  thresholdsConfig  `toml:"thresholds"`
 	Telegram    telegramConfig    `toml:"telegram"`
+	Ntfy        ntfyConfig        `toml:"ntfy"`
 	Touch       touchConfig       `toml:"touch"`
 	Log         logConfig         `toml:"log"`
 	Hosts       []hostConfig      `toml:"hosts"`
@@ -61,6 +63,21 @@ type telegramConfig struct {
 	QuietFrom  clockTime `toml:"quiet_from"`  // no messages from this time...
 	QuietUntil clockTime `toml:"quiet_until"` // ...until this one
 }
+
+type ntfyConfig struct {
+	Enabled    bool      `toml:"enabled"`
+	Server     string    `toml:"server"`   // https://ntfy.sh or a self-hosted server
+	Topic      string    `toml:"topic"`    // the topic to publish to
+	Token      string    `toml:"token"`    // an access token, for a server with access control...
+	Username   string    `toml:"username"` // ...or a user and password
+	Password   string    `toml:"password"`
+	Priority   int       `toml:"priority"`    // 1 (min) to 5 (max); 0 leaves it to the server (3)
+	QuietFrom  clockTime `toml:"quiet_from"`  // no messages from this time...
+	QuietUntil clockTime `toml:"quiet_until"` // ...until this one
+}
+
+// ntfyTopic is what ntfy accepts as a topic name.
+var ntfyTopic = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
 
 type touchConfig struct {
 	Enabled bool   `toml:"enabled"`
@@ -166,6 +183,11 @@ func defaultConfig() config {
 			QuietFrom:  23 * 60,
 			QuietUntil: 8 * 60,
 		},
+		Ntfy: ntfyConfig{
+			Server:     "https://ntfy.sh",
+			QuietFrom:  23 * 60,
+			QuietUntil: 8 * 60,
+		},
 		Thresholds: thresholdsConfig{
 			CPUWarning:         80,
 			MemoryWarning:      85,
@@ -240,6 +262,11 @@ func (c config) validate() error {
 	if t := c.Telegram; t.Enabled && t.ChatID == "" {
 		return errors.New("telegram.chat_id must be set")
 	}
+	if n := c.Ntfy; n.Enabled {
+		if err := n.validate(); err != nil {
+			return fmt.Errorf("ntfy.%w", err)
+		}
+	}
 	if t := c.Touch; t.Enabled && t.Device == "" {
 		return errors.New("touch.device must be set, like \"/dev/input/by-id/usb-...-event-if00\"")
 	}
@@ -269,6 +296,27 @@ func (c config) validate() error {
 			return fmt.Errorf("host %q: metrics_source must be %q or an http(s) URL, got %q",
 				h.Name, sourceLocal, h.MetricsSource)
 		}
+	}
+	return nil
+}
+
+func (n ntfyConfig) validate() error {
+	u, err := url.Parse(n.Server)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" ||
+		u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return fmt.Errorf("server must be an http(s) URL like \"https://ntfy.sh\", got %q", n.Server)
+	}
+	if !ntfyTopic.MatchString(n.Topic) {
+		return fmt.Errorf("topic must be 1 to 64 letters, digits, - or _, got %q", n.Topic)
+	}
+	if n.Token != "" && n.Username != "" {
+		return errors.New("token and username can't both be set")
+	}
+	if n.Password != "" && n.Username == "" {
+		return errors.New("username must be set with password")
+	}
+	if n.Priority < 0 || n.Priority > 5 {
+		return fmt.Errorf("priority must be 1 (min) to 5 (max), or 0 for the server's default, got %d", n.Priority)
 	}
 	return nil
 }
