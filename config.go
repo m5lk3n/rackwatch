@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -26,6 +27,7 @@ type config struct {
 	Telegram    telegramConfig    `toml:"telegram"`
 	Ntfy        ntfyConfig        `toml:"ntfy"`
 	Touch       touchConfig       `toml:"touch"`
+	Web         webConfig         `toml:"web"`
 	Log         logConfig         `toml:"log"`
 	Hosts       []hostConfig      `toml:"hosts"`
 }
@@ -85,6 +87,11 @@ type touchConfig struct {
 	SwapXY  bool   `toml:"swap_xy"`  // the touchscreen is turned a quarter against the display
 	InvertX bool   `toml:"invert_x"` // left and right are the wrong way round
 	InvertY bool   `toml:"invert_y"` // top and bottom are the wrong way round
+}
+
+type webConfig struct {
+	Enabled bool   `toml:"enabled"`
+	Listen  string `toml:"listen"` // address to serve the web dashboard on, like ":8080"
 }
 
 type logConfig struct {
@@ -188,6 +195,9 @@ func defaultConfig() config {
 			QuietFrom:  23 * 60,
 			QuietUntil: 8 * 60,
 		},
+		Web: webConfig{
+			Listen: ":8080",
+		},
 		Thresholds: thresholdsConfig{
 			CPUWarning:         80,
 			MemoryWarning:      85,
@@ -269,6 +279,11 @@ func (c config) validate() error {
 	}
 	if t := c.Touch; t.Enabled && t.Device == "" {
 		return errors.New("touch.device must be set, like \"/dev/input/by-id/usb-...-event-if00\"")
+	}
+	if w := c.Web; w.Enabled {
+		if _, port, err := net.SplitHostPort(w.Listen); err != nil || port == "" {
+			return fmt.Errorf("web.listen must be an address like \":8080\" or \"127.0.0.1:8080\", got %q", w.Listen)
+		}
 	}
 	if _, ok := themes[c.Dashboard.Theme]; !ok {
 		return fmt.Errorf("dashboard.theme: unknown theme %q (available: %s)", c.Dashboard.Theme, themeNames())

@@ -1,0 +1,1 @@
+allow custom web interface, showing the dashboard as part of my rack

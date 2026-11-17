@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- rack cabinet -->
+  <rect x="18" y="8" width="92" height="112" rx="12" fill="#3B4252"/>
+  <rect x="18" y="8" width="92" height="104" rx="12" fill="#4C566A"/>
+  <rect x="26" y="16" width="76" height="90" rx="6" fill="#2E3440"/>
+  <!-- feet -->
+  <rect x="26" y="118" width="14" height="6" rx="3" fill="#2E3440"/>
+  <rect x="88" y="118" width="14" height="6" rx="3" fill="#2E3440"/>
+  <!-- server units -->
+  <!-- top unit: the rackwatch dashboard on its front panel -->
+  <g>
+    <rect x="30" y="20" width="68" height="24" rx="4" fill="#D8DEE9"/>
+    <rect x="30" y="38" width="68" height="6" rx="3" fill="#B8C0CE"/>
+    <rect x="33" y="22" width="62" height="20" rx="2.5" fill="#1C1F24"/>
+    <rect x="35" y="23.3" width="10" height="2" rx="0.6" fill="#3FA7D6"/>
+    <rect x="47" y="23.3" width="6" height="2" rx="0.6" fill="#F2A33A"/>
+    <rect x="35" y="27" width="19" height="14" rx="1.5" fill="none" stroke="#4C566A" stroke-width="0.8"/>
+    <rect x="47.5" y="25.6" width="5" height="2.8" rx="0.6" fill="#43C463"/>
+    <polyline points="37.0,31.8 41.0,31.8 43.0,30.2 45.0,31.8 48.0,30.8 52.0,31.8" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="37.0,35.3 41.0,35.3 43.0,34.1 45.0,35.3 48.0,34.3 52.0,35.3" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="37.0,38.8 41.0,38.8 43.0,38.0 45.0,38.8 48.0,37.8 52.0,38.8" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="54.5" y="27" width="19" height="14" rx="1.5" fill="none" stroke="#4C566A" stroke-width="0.8"/>
+    <rect x="67.0" y="25.6" width="5" height="2.8" rx="0.6" fill="#43C463"/>
+    <polyline points="56.5,31.8 60.5,31.8 62.5,30.2 64.5,31.8 67.5,30.8 71.5,31.8" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="56.5,35.3 60.5,35.3 62.5,34.1 64.5,35.3 67.5,34.3 71.5,35.3" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="56.5,38.8 60.5,38.8 62.5,38.0 64.5,38.8 67.5,37.8 71.5,38.8" fill="none" stroke="#4FA8E0" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="74" y="27" width="19" height="14" rx="1.5" fill="none" stroke="#4C566A" stroke-width="0.8"/>
+    <rect x="86.5" y="25.6" width="5" height="2.8" rx="0.6" fill="#E8453C"/>
+    <line x1="76" y1="31.5" x2="91" y2="31.5" stroke="#8F99AB" stroke-width="0.9" stroke-linecap="round" stroke-dasharray="0.1 1.6"/>
+    <line x1="76" y1="35.0" x2="91" y2="35.0" stroke="#8F99AB" stroke-width="0.9" stroke-linecap="round" stroke-dasharray="0.1 1.6"/>
+    <line x1="76" y1="38.5" x2="91" y2="38.5" stroke="#8F99AB" stroke-width="0.9" stroke-linecap="round" stroke-dasharray="0.1 1.6"/>
+  </g>
+  <g>
+    <rect x="30" y="49" width="68" height="24" rx="4" fill="#D8DEE9"/>
+    <rect x="30" y="67" width="68" height="6" rx="3" fill="#B8C0CE"/>
+    <rect x="60" y="56" width="32" height="4" rx="2" fill="#8F99AB"/>
+    <rect x="70" y="63" width="22" height="3" rx="1.5" fill="#8F99AB"/>
+    <circle cx="40" cy="60" r="4.5" fill="#43C463"/>
+    <circle cx="39" cy="58.6" r="1.5" fill="#B7F5C6"/>
+    <circle cx="50" cy="60" r="3" fill="#43C463"/>
+  </g>
+  <g>
+    <rect x="30" y="78" width="68" height="24" rx="4" fill="#D8DEE9"/>
+    <rect x="30" y="96" width="68" height="6" rx="3" fill="#B8C0CE"/>
+    <rect x="60" y="85" width="32" height="4" rx="2" fill="#8F99AB"/>
+    <rect x="70" y="92" width="22" height="3" rx="1.5" fill="#8F99AB"/>
+    <circle cx="40" cy="89" r="4.5" fill="#E8453C"/>
+    <circle cx="39" cy="87.6" r="1.5" fill="#FFB4AE"/>
+    <circle cx="50" cy="89" r="3" fill="#F2A33A"/>
+  </g>
+  <!-- magnifying glass watching the rack -->
+  <g transform="rotate(-45 96 100)">
+    <rect x="91" y="104" width="10" height="24" rx="5" fill="#7A4A1F"/>
+    <rect x="93" y="104" width="3" height="22" rx="1.5" fill="#A0652F"/>
+    <rect x="90" y="100" width="12" height="8" rx="2" fill="#5E6B7E"/>
+  </g>
+  <circle cx="90" cy="92" r="20" fill="#5E6B7E"/>
+  <circle cx="90" cy="92" r="15" fill="#A7E3F7"/>
+  <!-- sparkline in the lens -->
+  <polyline points="77,96 82,96 85,86 89,101 93,90 96,95 103,95" fill="none" stroke="#1E88C8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M80 84 A13 13 0 0 1 92 79" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+</svg>

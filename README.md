@@ -53,7 +53,7 @@ curl -fsSL https://raw.githubusercontent.com/m5lk3n/rackwatch/main/uninstall.sh 
 rackwatch is a single Go binary that runs a full-screen terminal dashboard on the small display of a 10-inch rack. It shows one column per host, up to 10 hosts, with CPU, RAM, disk, temperature and network. Each metric gets a sparkline of recent history, and each host shows as UP, STALE or DOWN.
 
 - **Installation**: [install.sh](./install.sh) downloads the latest release and checks its checksum. It installs the binary to `/opt/rackwatch/` and sets up a systemd service that runs as the `rackwatch` user on TTY1, replacing the login prompt there. Run the same command again to update.
-- **Config**: a single TOML file, `/etc/rackwatch/config.toml`, created from [config.toml.example](config.toml.example) and never overwritten by updates. List your hosts there, plus optional settings for the theme, [screensaver](images/screensaver.png), night blackout, touchscreen and Telegram or ntfy alerts. See [Configuration](#configuration).
+- **Config**: a single TOML file, `/etc/rackwatch/config.toml`, created from [config.toml.example](config.toml.example) and never overwritten by updates. List your hosts there, plus optional settings for the theme, [screensaver](images/screensaver.png), night blackout, touchscreen, Telegram or ntfy alerts, and a [web dashboard](#web-dashboard). See [Configuration](#configuration).
 - **Dashboard**: refreshes every 30 seconds by default and keeps its history in memory. It never blocks on a slow host. Values over a threshold are highlighted. Press `r` or tap `[ refresh ]` to refresh now, `q` to quit. See [Running](#running).
 - **node_exporter**: the machine running rackwatch can read its own metrics (`metrics_source = "local"`). Every other host needs [node_exporter](https://github.com/prometheus/node_exporter) on port 9100. Install it from your distribution's package manager. It's lightweight and doesn't need a Prometheus server. See [Setting up remote hosts](#setting-up-remote-hosts).
 
@@ -118,6 +118,8 @@ See [config.toml.example](config.toml.example) for a full example.
 | `touch.enabled` | Read a touchscreen directly on the Linux text console, see [Touchscreen](#touchscreen) (default `false`) |
 | `touch.device` | The touchscreen's input device, e.g. `"/dev/input/by-id/usb-…-event-if00"` |
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
+| `web.enabled` | Serve the dashboard to browsers too, see [Web dashboard](#web-dashboard) (default `false`) |
+| `web.listen` | Address to serve it on: `":8080"` for every network interface, or e.g. `"127.0.0.1:8080"` for this machine only (default `":8080"`) |
 | `log.debug` | Also log each touch and tap, see [Touchscreen](#touchscreen). Like all of rackwatch's logging, this goes to stderr only when stderr isn't a terminal, as with the service, where `journalctl -u rackwatch` shows it (default `false`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C |
 | `hosts[].name` | Name shown on the panel; must be unique among enabled hosts. Up to 10 enabled hosts can be configured |
@@ -290,6 +292,20 @@ With `[telegram]` or `[ntfy]` enabled, rackwatch sends a message when a host goe
 
    For a server with access control, add `-H "Authorization: Bearer <token>"` or `-u <user>:<password>`.
 
+## Web dashboard
+
+With `[web]` enabled, rackwatch also serves the dashboard at `http://<rack-host>:8080/`, for checking the rack from another room or a phone:
+
+```toml
+[web]
+enabled = true
+listen = ":8080"
+```
+
+The page shows the same panels as the screen: each host's metrics, status badge, last error and sparklines, in the configured theme's colors. It updates every 2 seconds, and its `refresh` button polls all hosts now, like `[ refresh ]` on the screen. Panels wrap to fit the browser window, down to one column on a phone. The screensaver and the night blackout only affect the rack screen, and the page has no restart button.
+
+There is no login and no HTTPS, so anyone who can reach the port sees the host names and metrics and can trigger a refresh. Keep it on a trusted network, or set `listen = "127.0.0.1:8080"` and put a reverse proxy with authentication in front. If the port is taken, rackwatch exits at startup with the error.
+
 ## Limitations
 
 - Remote URLs only work with node_exporter's format.
@@ -338,8 +354,12 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 | [alert.go](alert.go) | Alerts: when to send, quiet hours, retries, and the message text |
 | [telegram.go](telegram.go) | The Telegram Bot API call |
 | [ntfy.go](ntfy.go) | The ntfy publish call |
+| [web.go](web.go) | The web dashboard's HTTP server and the snapshot of the dashboard it serves |
+| [web/index.html](web/index.html) | The web dashboard page, embedded in the binary |
+| [web/favicon.svg](web/favicon.svg), [favicon.ico](web/favicon.ico), [apple-touch-icon.png](web/apple-touch-icon.png) | The web dashboard's icons, made from [images/logo.svg](images/logo.svg). After changing the logo, copy it to `favicon.svg` and remake the others with `rsvg-convert` and ImageMagick: render 16, 32, 48 and 180 px PNGs, combine the first three into `favicon.ico`, and use the 180 px one as `apple-touch-icon.png` |
 | [theme.go](theme.go) | Theme definitions. To add one, write another function and add it to the `themes` map. Styles use the 16 color slots, with only the first 8 as backgrounds, or the theme breaks on the Linux console; a test checks this. To use custom colors, set `palette` with the RGB value of each slot, as the Prot16 themes do. For another Prot16 dark variant, or any palette laid out the same way (as the default theme is), pass its 16 colors to `prot16Dark`. |
 | [main_test.go](main_test.go) | Tests for the parser, rate calculation, ring buffer, unreachable-host handling, the local collector, themes, rendering, and alerts |
+| [web_test.go](web_test.go) | Tests for the web dashboard |
 
 ---
 

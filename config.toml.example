@@ -2,6 +2,7 @@
 refresh_seconds = 30
 stale_after = "300s"
 down_after = "12h"
+# "default", "archaic", "fortuna", "gaia", "hinterland" or "noir"
 theme = "default"
 show_sparklines = true
 # "auto", "eighths", "halves" or "line"; auto uses line on the Linux text console
@@ -62,6 +63,12 @@ device = "/dev/input/by-id/usb-wch.cn_TouchScreen_9LQ0172005164-event-if00"
 swap_xy = false
 invert_x = false
 invert_y = false
+
+[web]
+# also serve the dashboard to browsers at http://<this host>:8080/; no login, so keep it on a trusted network
+enabled = false
+# ":8080" listens on every interface, "127.0.0.1:8080" on this machine only
+listen = ":8080"
 
 [log]
 # also log each touch and tap, to see where taps land; read the log with: journalctl -u rackwatch

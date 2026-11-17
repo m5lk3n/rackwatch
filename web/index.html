@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rackwatch</title>
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #191a1b; --border: #444444; --title-fg: #191a1b; --title-bg: #3994bc;
+    --label: #8c8c8c; --value: #bbbebf; --warn: #cd861a; --spark: #48a0c7;
+    --muted: #707070; --host: #ffffff; --up-fg: #191a1b; --up-bg: #86cf86;
+    --stale-fg: #191a1b; --stale-bg: #e0b97f; --down-fg: #ffffff; --down-bg: #c93c37;
+    --error: #cd861a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--value); }
+  body {
+    font: 15px/1.4 ui-monospace, "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    padding: 12px 16px 16px;
+    min-height: 100vh;
+  }
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+    margin-bottom: 12px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .title {
+    background: var(--title-bg); color: var(--title-fg); font-weight: bold;
+    padding: 0 8px; letter-spacing: .04em;
+  }
+  .label { color: var(--label); }
+  .warn { color: var(--warn); font-weight: bold; }
+  .ok { color: var(--value); }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; color: var(--label); background: none; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 6px; padding: 1px 10px;
+  }
+  button:hover { color: var(--value); border-color: var(--label); }
+  button:disabled { color: var(--muted); cursor: default; }
+  #offline { display: none; }
+  body.offline #offline { display: inline; }
+  body.offline main { opacity: .55; }
+
+  main {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr));
+  }
+  .host {
+    position: relative; border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 12px 12px; margin-top: 8px; min-width: 0;
+  }
+  .host-name, .badge, .error {
+    position: absolute; background: var(--bg); padding: 0 6px; line-height: 1.2;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .host-name { top: -.65em; left: 10px; color: var(--host); font-weight: bold; max-width: 55%; }
+  .badge { top: -.65em; right: 10px; font-weight: bold; padding: 0 8px; }
+  .badge.UP { background: var(--up-bg); color: var(--up-fg); }
+  .badge.STALE { background: var(--stale-bg); color: var(--stale-fg); }
+  .badge.DOWN { background: var(--down-bg); color: var(--down-fg); }
+  .badge.WAITING { color: var(--label); }
+  .error { bottom: -.65em; left: 14px; color: var(--error); max-width: calc(100% - 28px); }
+  .metric {
+    display: grid; grid-template-columns: 4.5ch 8ch minmax(0, 1fr); align-items: end;
+    column-gap: 8px; padding-top: 6px;
+  }
+  .metric .name { color: var(--label); }
+  .metric .val { text-align: right; }
+  .host.not-up .metric .val { color: var(--muted); }
+  .metric .val.warn { color: var(--warn); }
+  canvas { width: 100%; height: 32px; display: block; }
+  .empty { color: var(--label); }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="title">RACKWATCH</span>
+    <span class="label" id="version"></span>
+  </div>
+  <div><span class="label">HOSTS </span><span id="up"></span></div>
+  <div id="alerts"></div>
+  <span class="warn" id="offline">no connection to rackwatch</span>
+  <span class="spacer"></span>
+  <span class="label" id="clock"></span>
+  <button id="refresh" type="button" title="Poll all hosts now">refresh</button>
+</header>
+<main id="hosts"><p class="empty">Loading…</p></main>
+
+<script>
+"use strict";
+const POLL_MS = 2000;
+const BAR = 3, GAP = 1; // sparkline bar width and gap, in CSS pixels
+
+let state = null;      // the latest snapshot
+let receivedAt = 0;    // when it arrived, for counting STALE time up
+let etag = null;
+const panels = new Map(); // host name -> its elements
+
+const $ = id => document.getElementById(id);
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function applyTheme(theme) {
+  for (const [k, v] of Object.entries(theme || {})) {
+    document.documentElement.style.setProperty("--" + k, v);
+  }
+}
+
+function duration(secs) {
+  secs = Math.floor(secs);
+  const h = Math.floor(secs / 3600), m = Math.floor(secs % 3600 / 60), s = secs % 60;
+  return (h ? h + "h" : "") + (h || m ? m + "m" : "") + s + "s";
+}
+
+function badgeText(h) {
+  switch (h.status) {
+    case "UP": return "UP";
+    case "DOWN": return "DOWN";
+    case "STALE": return "STALE " + duration(h.stale_for + (Date.now() - receivedAt) / 1000);
+    default: return "...";
+  }
+}
+
+function panelFor(h, labels) {
+  let p = panels.get(h.name);
+  if (p) return p;
+  const root = el("section", "host");
+  const name = el("span", "host-name", h.name);
+  name.title = h.name;
+  const badge = el("span", "badge");
+  const error = el("span", "error");
+  root.append(name, badge, error);
+  const metrics = labels.map(label => {
+    const row = el("div", "metric");
+    const val = el("span", "val");
+    const canvas = el("canvas");
+    row.append(el("span", "name", label), val, canvas);
+    root.append(row);
+    return { val, canvas };
+  });
+  p = { root, badge, error, metrics };
+  panels.set(h.name, p);
+  return p;
+}
+
+function css(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue("--" + name).trim();
+}
+
+function drawSpark(canvas, m, threshold, fresh) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w || !h) return;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const hist = m.history || [];
+  const n = Math.min(hist.length, Math.floor((w + GAP) / (BAR + GAP)));
+  const samples = hist.slice(hist.length - n);
+  const spark = css("spark"), warn = css("warn"), muted = css("muted");
+  // Right-aligned, so the newest sample sits at the panel edge.
+  let x = w - n * (BAR + GAP) + GAP;
+  for (const s of samples) {
+    if (s === null) {
+      ctx.fillStyle = muted;
+      ctx.fillRect(x + BAR / 2 - 1, h - 3, 2, 2);
+    } else {
+      ctx.fillStyle = !fresh ? muted : (threshold !== null && s >= threshold ? warn : spark);
+      const bh = Math.max(1, Math.min(1, s / m.scale) * h);
+      ctx.fillRect(x, h - bh, BAR, bh);
+    }
+    x += BAR + GAP;
+  }
+}
+
+function render() {
+  if (!state) return;
+  $("version").textContent = state.version;
+  document.title = `rackwatch ${state.version}`;
+  const up = state.hosts.filter(h => h.status === "UP").length;
+  const upEl = $("up");
+  upEl.textContent = `${up}/${state.hosts.length} UP`;
+  upEl.className = up < state.hosts.length ? "warn" : "ok";
+
+  const alerts = $("alerts");
+  alerts.replaceChildren(...(state.alerts || []).flatMap(a =>
+    [el("span", "label", a.name + " "), el("span", "warn", a.error + "  ")]));
+
+  const main = $("hosts");
+  const wanted = state.hosts.map(h => panelFor(h, state.labels).root);
+  if (main.children.length !== wanted.length || wanted.some((r, i) => main.children[i] !== r)) {
+    main.replaceChildren(...wanted);
+  }
+  state.hosts.forEach(h => {
+    const p = panels.get(h.name);
+    const fresh = h.status === "UP";
+    p.root.classList.toggle("not-up", !fresh);
+    p.badge.className = "badge " + h.status;
+    p.badge.textContent = badgeText(h);
+    p.error.textContent = h.error || "";
+    p.error.hidden = !h.error;
+    h.metrics.forEach((m, k) => {
+      const t = state.thresholds[k];
+      const mp = p.metrics[k];
+      mp.val.textContent = m.text;
+      mp.val.classList.toggle("warn", fresh && t !== null && m.value !== null && m.value >= t);
+      mp.canvas.hidden = !m.history;
+      if (m.history) drawSpark(mp.canvas, m, t, fresh);
+    });
+  });
+}
+
+async function poll() {
+  try {
+    const res = await fetch("api/state", {
+      cache: "no-store",
+      headers: etag ? { "If-None-Match": etag } : {},
+    });
+    if (res.status === 200) {
+      state = await res.json();
+      etag = res.headers.get("ETag");
+      receivedAt = Date.now();
+      applyTheme(state.theme);
+      render();
+    } else if (res.status !== 304) {
+      throw new Error("HTTP " + res.status);
+    }
+    document.body.classList.remove("offline");
+  } catch (e) {
+    document.body.classList.add("offline");
+  }
+  setTimeout(poll, POLL_MS);
+}
+
+function tick() {
+  $("clock").textContent = new Date().toLocaleTimeString([], { hour12: false });
+  // Count STALE time up between snapshots.
+  if (state) {
+    state.hosts.forEach(h => {
+      if (h.status === "STALE") panels.get(h.name).badge.textContent = badgeText(h);
+    });
+  }
+}
+
+$("refresh").addEventListener("click", async () => {
+  const b = $("refresh");
+  b.disabled = true;
+  try { await fetch("api/refresh", { method: "POST" }); } catch (e) { /* shown by the next poll */ }
+  setTimeout(() => { b.disabled = false; }, 1000);
+});
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 100);
+});
+
+tick();
+setInterval(tick, 1000);
+poll();
+</script>
+</body>
+</html>

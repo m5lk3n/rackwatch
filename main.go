@@ -72,6 +72,22 @@ func run(cfg config) error {
 
 	dash := newDashboard(cfg, hosts)
 	dash.alerts = alerts
+
+	// The web dashboard gets a snapshot after every change; a refresh from the
+	// browser arrives like the refresh button. Without it webRefresh stays nil.
+	var web *webServer
+	var webRefresh <-chan struct{}
+	publish := func() {}
+	if cfg.Web.Enabled {
+		web = newWebServer()
+		publish = func() { web.publish(newWebSnapshot(dash, time.Now())) }
+		publish()
+		if err := web.start(cfg.Web.Listen); err != nil {
+			return err
+		}
+		defer web.stop()
+		webRefresh = web.refresh
+	}
 	saver := newMatrixRain(console)
 	saverOn := false
 	// The black-out period blanks the screen, and on the Linux console turns
@@ -265,14 +281,19 @@ func run(cfg config) error {
 		case r := <-results:
 			hosts[r.host].apply(r)
 			checkAlerts()
+			publish()
 			render()
 		case r := <-alertResults:
 			r.alerter.apply(r, time.Now())
+			publish()
 			render()
 		case <-ticker.C:
 			pollAll()
 			checkAlerts()
+			publish()
 			render()
+		case <-webRefresh:
+			pollAll()
 		case <-saverStart:
 			if !dark {
 				startSaver()
