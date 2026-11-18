@@ -27,6 +27,20 @@ func main() {
 		fmt.Printf("rackwatch %s (built by %s)\n", version, builtBy)
 		return
 	}
+	if flag.Arg(0) == "validate" {
+		// The file to check may follow the command; it defaults to -config.
+		path := *configPath
+		if flag.NArg() > 1 {
+			path = flag.Arg(1)
+		}
+		cfg, err := validateConfig(path)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "rackwatch:", err)
+			os.Exit(1)
+		}
+		fmt.Printf("%s: OK (%d hosts)\n", path, len(cfg.Hosts))
+		return
+	}
 
 	cfg, err := loadConfig(*configPath)
 	if err != nil {

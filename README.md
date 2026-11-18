@@ -71,6 +71,8 @@ Manual start if not installed via [install.sh](./install.sh):
 cp config.toml.example config.toml      # then edit the hosts
 ./rackwatch                             # reads ./config.toml
 ./rackwatch -config path/to/config.toml
+./rackwatch validate                    # checks ./config.toml and exits
+./rackwatch validate path/to/config.toml
 ./rackwatch version                     # prints the version and who built it
 ```
 

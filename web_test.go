@@ -362,3 +362,21 @@ func TestWebCustomPath(t *testing.T) {
 		t.Errorf("empty custom = %q, want empty", got)
 	}
 }
+
+func TestValidateConfig(t *testing.T) {
+	if _, err := validateConfig("config.toml.example"); err != nil {
+		t.Errorf("config.toml.example: %v", err)
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	toml := "[web]\nenabled = true\ncustom = \"missing.png\"\n[[hosts]]\nname = \"x\"\nmetrics_source = \"local\"\n"
+	if err := os.WriteFile(path, []byte(toml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadConfig(path); err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if _, err := validateConfig(path); err == nil {
+		t.Error("missing web.custom picture accepted, want error")
+	}
+}

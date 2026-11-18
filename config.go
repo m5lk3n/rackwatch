@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"net"
 	"net/url"
 	"path/filepath"
@@ -340,4 +341,20 @@ func (n ntfyConfig) validate() error {
 		return fmt.Errorf("priority must be 1 (min) to 5 (max), or 0 for the server's default, got %d", n.Priority)
 	}
 	return nil
+}
+
+// validateConfig loads the config at path, as rackwatch does on startup, and
+// also checks what is otherwise only checked once the dashboard starts: that
+// the web.custom picture loads and has its screen painted in.
+func validateConfig(path string) (config, error) {
+	cfg, err := loadConfig(path)
+	if err != nil {
+		return cfg, err
+	}
+	if cfg.Web.Enabled && cfg.Web.Custom != "" {
+		if _, err := loadRackImage(cfg.Web.Custom, color.RGBA{A: 0xff}); err != nil {
+			return cfg, err
+		}
+	}
+	return cfg, nil
 }
