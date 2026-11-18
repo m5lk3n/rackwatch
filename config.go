@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -92,6 +93,7 @@ type touchConfig struct {
 type webConfig struct {
 	Enabled bool   `toml:"enabled"`
 	Listen  string `toml:"listen"` // address to serve the web dashboard on, like ":8080"
+	Custom  string `toml:"custom"` // a picture of the rack with its screen painted #ffff00, to show the dashboard in
 }
 
 type logConfig struct {
@@ -222,6 +224,10 @@ func loadConfig(path string) (config, error) {
 	}
 	if len(cfg.Hosts) == 0 {
 		return cfg, errors.New("no [[hosts]] configured")
+	}
+	if c := cfg.Web.Custom; c != "" && !filepath.IsAbs(c) {
+		// Relative to the config file, so it can sit next to it in /etc/rackwatch.
+		cfg.Web.Custom = filepath.Join(filepath.Dir(path), c)
 	}
 	cfg.Hosts = enabledHosts(cfg.Hosts)
 	if len(cfg.Hosts) == 0 {

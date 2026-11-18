@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"image/color"
 	"log/slog"
 	"os"
 	"time"
@@ -51,6 +52,17 @@ func run(cfg config) error {
 		hosts[i] = newHostState(hc)
 	}
 
+	// Loaded before the terminal is taken over, so a bad picture's error shows.
+	var rack *rackImage
+	if cfg.Web.Enabled && cfg.Web.Custom != "" {
+		var err error
+		bg := themes[cfg.Dashboard.Theme].forTerminal(false).base.Bg.Hex()
+		rack, err = loadRackImage(cfg.Web.Custom, color.RGBA{uint8(bg >> 16), uint8(bg >> 8), uint8(bg), 0xff}) // #nosec G115 -- bytes of a 24-bit color
+		if err != nil {
+			return err
+		}
+	}
+
 	console := onLinuxConsole()
 	if console {
 		// Registered before ui.Close, so it runs after the screen is released.
@@ -79,7 +91,7 @@ func run(cfg config) error {
 	var webRefresh <-chan struct{}
 	publish := func() {}
 	if cfg.Web.Enabled {
-		web = newWebServer()
+		web = newWebServer(rack)
 		publish = func() { web.publish(newWebSnapshot(dash, time.Now())) }
 		publish()
 		if err := web.start(cfg.Web.Listen); err != nil {

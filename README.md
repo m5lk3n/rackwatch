@@ -120,6 +120,7 @@ See [config.toml.example](config.toml.example) for a full example.
 | `touch.swap_xy`, `invert_x`, `invert_y` | If taps land in the wrong place: swap the axes when the touchscreen is turned against the display, invert one when it's mirrored (default `false`) |
 | `web.enabled` | Serve the dashboard to browsers too, see [Web dashboard](#web-dashboard) (default `false`) |
 | `web.listen` | Address to serve it on: `":8080"` for every network interface, or e.g. `"127.0.0.1:8080"` for this machine only (default `":8080"`) |
+| `web.custom` | A PNG or JPEG of your rack with its screen painted yellow (`#ffff00`), to show the web dashboard in, see [Web dashboard](#web-dashboard). A relative path is relative to the config file (default `""`, the plain page) |
 | `log.debug` | Also log each touch and tap, see [Touchscreen](#touchscreen). Like all of rackwatch's logging, this goes to stderr only when stderr isn't a terminal, as with the service, where `journalctl -u rackwatch` shows it (default `false`) |
 | `thresholds.*_warning` | Values at or above these are highlighted. Temperature is in °C |
 | `hosts[].name` | Name shown on the panel; must be unique among enabled hosts. Up to 10 enabled hosts can be configured |
@@ -304,6 +305,20 @@ listen = ":8080"
 
 The page shows the same panels as the screen: each host's metrics, status badge, last error and sparklines, in the configured theme's colors. It updates every 2 seconds, and its `refresh` button polls all hosts now, like `[ refresh ]` on the screen. Panels wrap to fit the browser window, down to one column on a phone. The screensaver and the night blackout only affect the rack screen, and the page has no restart button.
 
+### Your rack
+
+Set `custom` to a picture of your rack, and the page shows that picture with the dashboard on its screen:
+
+```toml
+[web]
+enabled = true
+custom = "my-rack-template.png"
+```
+
+Paint the screen in the picture solid yellow, `#ffff00`, as in [images/my-rack-template.png](images/my-rack-template.png). rackwatch looks for that rectangle at startup and fills it with the theme's background. The page draws the dashboard into it at the real screen's width of 1424 pixels, scaled to fit, so it looks like the rack's own display. The picture is scaled to fit the browser window. With `custom` relative, as above, the picture goes next to the config file, e.g. in `/etc/rackwatch/`. If the picture can't be read, or has no yellow rectangle, rackwatch exits at startup with the error.
+
+### Security
+
 There is no login and no HTTPS, so anyone who can reach the port sees the host names and metrics and can trigger a refresh. Keep it on a trusted network, or set `listen = "127.0.0.1:8080"` and put a reverse proxy with authentication in front. If the port is taken, rackwatch exits at startup with the error.
 
 ## Limitations
@@ -355,6 +370,7 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 | [telegram.go](telegram.go) | The Telegram Bot API call |
 | [ntfy.go](ntfy.go) | The ntfy publish call |
 | [web.go](web.go) | The web dashboard's HTTP server and the snapshot of the dashboard it serves |
+| [rack.go](rack.go) | Loads `web.custom`'s rack picture and finds its yellow screen |
 | [web/index.html](web/index.html) | The web dashboard page, embedded in the binary |
 | [web/favicon.svg](web/favicon.svg), [favicon.ico](web/favicon.ico), [apple-touch-icon.png](web/apple-touch-icon.png) | The web dashboard's icons, made from [images/logo.svg](images/logo.svg). After changing the logo, copy it to `favicon.svg` and remake the others with `rsvg-convert` and ImageMagick: render 16, 32, 48 and 180 px PNGs, combine the first three into `favicon.ico`, and use the 180 px one as `apple-touch-icon.png` |
 | [theme.go](theme.go) | Theme definitions. To add one, write another function and add it to the `themes` map. Styles use the 16 color slots, with only the first 8 as backgrounds, or the theme breaks on the Linux console; a test checks this. To use custom colors, set `palette` with the RGB value of each slot, as the Prot16 themes do. For another Prot16 dark variant, or any palette laid out the same way (as the default theme is), pass its 16 colors to `prot16Dark`. |

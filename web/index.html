@@ -76,9 +76,35 @@
   .metric .val.warn { color: var(--warn); }
   canvas { width: 100%; height: 32px; display: block; }
   .empty { color: var(--label); }
+
+  /* web.custom: the dashboard as the screen of a rack picture. #screen is
+     laid out at a fixed size, like the real screen, and scaled to the cutout. */
+  body.rack-mode {
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  body.rack-mode #rack {
+    position: relative;
+    width: min(100%, calc((100vh - 32px) * var(--rack-aspect)));
+  }
+  #rack-img { display: block; width: 100%; height: auto; }
+  body.rack-mode #cutout { position: absolute; overflow: hidden; background: var(--bg); }
+  body.rack-mode #screen {
+    position: absolute; top: 0; left: 0; transform-origin: 0 0;
+    display: flex; flex-direction: column; padding: 6px 10px 10px;
+  }
+  body.rack-mode header { margin-bottom: 4px; flex-wrap: nowrap; }
+  body.rack-mode main { flex: 1; min-height: 0; grid-auto-rows: minmax(0, 1fr); }
+  body.rack-mode .host { display: flex; flex-direction: column; padding-bottom: 8px; }
+  body.rack-mode .metric { flex: 1 1 0; min-height: 0; grid-template-rows: minmax(0, 1fr); padding-top: 2px; }
+  body.rack-mode canvas { height: 100%; min-height: 0; }
 </style>
 </head>
 <body>
+<div id="rack">
+<img id="rack-img" alt="" hidden>
+<div id="cutout">
+<div id="screen">
 <header>
   <div class="brand">
     <span class="title">RACKWATCH</span>
@@ -92,11 +118,18 @@
   <button id="refresh" type="button" title="Poll all hosts now">refresh</button>
 </header>
 <main id="hosts"><p class="empty">Loading…</p></main>
+</div>
+</div>
+</div>
 
 <script>
 "use strict";
 const POLL_MS = 2000;
-const BAR = 3, GAP = 1; // sparkline bar width and gap, in CSS pixels
+let BAR = 3, GAP = 1; // sparkline bar width and gap, in CSS pixels
+// With web.custom, the screen in the rack picture is laid out this wide, in CSS
+// pixels, like the real one, and panels are at least PANEL_W wide.
+const SCREEN_W = 1424, PANEL_W = 260;
+let rack = null; // the rack picture's geometry, once in rack mode
 
 let state = null;      // the latest snapshot
 let receivedAt = 0;    // when it arrived, for counting STALE time up
@@ -189,8 +222,35 @@ function drawSpark(canvas, m, threshold, fresh) {
   }
 }
 
+// setupRack switches to showing the dashboard in the rack picture r.
+function setupRack(r) {
+  rack = r;
+  BAR = 6; GAP = 2; // roughly a terminal cell per sample
+  document.body.classList.add("rack-mode");
+  document.documentElement.style.setProperty("--rack-aspect", r.width / r.height);
+  const img = $("rack-img");
+  img.src = "rack.jpg";
+  img.width = r.width;
+  img.height = r.height;
+  img.hidden = false;
+  const pct = (v, of) => (100 * v / of) + "%";
+  Object.assign($("cutout").style, {
+    left: pct(r.x, r.width), top: pct(r.y, r.height),
+    width: pct(r.w, r.width), height: pct(r.h, r.height),
+  });
+  const screen = $("screen");
+  screen.style.width = SCREEN_W + "px";
+  screen.style.height = Math.round(SCREEN_W * r.h / r.w) + "px";
+  const fit = () => {
+    screen.style.transform = `scale(${$("cutout").clientWidth / SCREEN_W})`;
+  };
+  new ResizeObserver(fit).observe($("cutout"));
+  fit();
+}
+
 function render() {
   if (!state) return;
+  if (state.rack && !rack) setupRack(state.rack);
   $("version").textContent = state.version;
   document.title = `rackwatch ${state.version}`;
   const up = state.hosts.filter(h => h.status === "UP").length;
@@ -207,6 +267,10 @@ function render() {
   if (main.children.length !== wanted.length || wanted.some((r, i) => main.children[i] !== r)) {
     main.replaceChildren(...wanted);
   }
+  // In the rack, like on the real screen: as many columns as fit, then rows.
+  main.style.gridTemplateColumns = rack
+    ? `repeat(${Math.max(1, Math.min(wanted.length, Math.floor(SCREEN_W / PANEL_W)))}, minmax(0, 1fr))`
+    : "";
   state.hosts.forEach(h => {
     const p = panels.get(h.name);
     const fresh = h.status === "UP";

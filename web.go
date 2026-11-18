@@ -39,7 +39,8 @@ type webSnapshot struct {
 	Hosts     []webHost         `json:"hosts"`
 	Alerts    []webAlert        `json:"alerts,omitempty"` // alert services whose last send failed
 	Theme     map[string]string `json:"theme"`
-	Threshold []*float64        `json:"thresholds"` // per metric; null for none
+	Threshold []*float64        `json:"thresholds"`     // per metric; null for none
+	Rack      *webRack          `json:"rack,omitempty"` // with web.custom: draw the dashboard into this picture
 }
 
 type webHost struct {
@@ -153,6 +154,7 @@ func webTheme(th *theme) map[string]string {
 type webServer struct {
 	snapshot atomic.Pointer[webPayload] // the latest webSnapshot
 	refresh  chan struct{}              // a browser asked for a refresh
+	rack     *rackImage                 // web.custom's picture, or nil
 	srv      *http.Server
 }
 
@@ -163,8 +165,10 @@ type webPayload struct {
 	etag string
 }
 
-func newWebServer() *webServer {
-	w := &webServer{refresh: make(chan struct{}, 1)}
+// newWebServer returns a server for the dashboard, drawn into rack's picture
+// unless rack is nil.
+func newWebServer(rack *rackImage) *webServer {
+	w := &webServer{refresh: make(chan struct{}, 1), rack: rack}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", w.serveIndex)
 	mux.HandleFunc("GET /api/state", w.serveState)
@@ -173,6 +177,9 @@ func newWebServer() *webServer {
 	iconServer := http.FileServerFS(icons)
 	for _, name := range []string{"favicon.svg", "favicon.ico", "apple-touch-icon.png"} {
 		mux.Handle("GET /"+name, iconServer)
+	}
+	if rack != nil {
+		mux.HandleFunc("GET /rack.jpg", w.serveRack)
 	}
 	w.srv = &http.Server{
 		Handler:           mux,
@@ -186,6 +193,7 @@ func newWebServer() *webServer {
 
 // publish makes s what browsers get next.
 func (w *webServer) publish(s *webSnapshot) {
+	s.Rack = w.rack.web()
 	b, err := json.Marshal(s)
 	if err != nil {
 		webLog.Warn("encoding state", "err", err)
@@ -221,6 +229,20 @@ func (w *webServer) serveIndex(rw http.ResponseWriter, _ *http.Request) {
 	setSecurityHeaders(rw)
 	rw.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = rw.Write(webIndex)
+}
+
+// serveRack serves web.custom's picture. Browsers keep it and only check that
+// it's still the same, as it is until rackwatch restarts with another one.
+func (w *webServer) serveRack(rw http.ResponseWriter, r *http.Request) {
+	setSecurityHeaders(rw)
+	rw.Header().Set("Cache-Control", "no-cache")
+	rw.Header().Set("ETag", w.rack.etag)
+	if r.Header.Get("If-None-Match") == w.rack.etag {
+		rw.WriteHeader(http.StatusNotModified)
+		return
+	}
+	rw.Header().Set("Content-Type", "image/jpeg")
+	_, _ = rw.Write(w.rack.jpeg)
 }
 
 func (w *webServer) serveState(rw http.ResponseWriter, r *http.Request) {

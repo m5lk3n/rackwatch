@@ -69,6 +69,9 @@ invert_y = false
 enabled = false
 # ":8080" listens on every interface, "127.0.0.1:8080" on this machine only
 listen = ":8080"
+# show the dashboard in a picture of your rack: a PNG or JPEG with the screen painted #ffff00;
+# a relative path is relative to this file
+# custom = "my-rack-template.png"
 
 [log]
 # also log each touch and tap, to see where taps land; read the log with: journalctl -u rackwatch
