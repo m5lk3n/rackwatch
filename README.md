@@ -12,7 +12,15 @@
   <img alt="MIT license" src="https://img.shields.io/badge/License-MIT-green"/>
 </p>
 <p align="center">
-  <img src="images/screenshot.png" alt="rackwatch screenshot"/>
+  <img src="images/screen.png" alt="rackwatch screen/console, archaic theme"/>
+  <br/>
+  <small>Screen/Console (theme: archaic)</small>
+</p>
+<hr/>
+<p align="center">
+  <img src="images/web.png" alt="rackwatch web, default theme"/>
+  <br/>
+  <small>Web (theme: default)</small>
 </p>
 <!-- markdownlint-enable MD033 -->
 
@@ -403,9 +411,11 @@ git tag "$NEW_VERSION" && git push origin "$NEW_VERSION"
 
 <!-- markdownlint-disable MD033 -->
 <p align="center">
-    <img alt="My Rack" src="images/my-rack.png" width="66%"/>
+    <img alt="My Rack Screensaver" src="images/my-rack-screensaver.png"/>
     <br/>
-    <small>(GPT-Image-2.5 enhanced my real image.)</small>
+    <small>(GPT-Image-2.5 enhanced my real images.)</small>
+    <br/>
+    <img alt="My Rack" src="images/my-rack.png"/>
 </p>
 
 For rackmount 3D prints, I can recommend [3B Print](https://3b-print.eu/).

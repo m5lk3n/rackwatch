@@ -15,3 +15,4 @@ x 2026-10-17 add a CLAUDE.md, mentioning e.g. to lint Markdown after each update
 x 2026-10-18 add a log-level, e.g., log touch events in debug
 x 2026-11-08 add a rack image
 x 2026-11-18 give it a web interface showing the dashboard
+x 2026-11-18 allow custom web interface, showing the dashboard as part of my rack
